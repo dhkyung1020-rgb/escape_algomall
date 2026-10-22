@@ -147,7 +147,9 @@ label.f{display:block;font-size:13px;font-weight:700;color:var(--mute);margin:14
   .keys{display:none}
   .team .mem em{display:none}
   .team .mem span{padding-right:6px;font-size:11.5px}
-  #toasts{top:auto;bottom:calc(140px + env(safe-area-inset-bottom,0px))}
+  #toasts{top:auto;bottom:calc(250px + env(safe-area-inset-bottom,0px))}
+  .chatbar{bottom:calc(136px + env(safe-area-inset-bottom,0px))!important;width:calc(100vw - 24px)!important}
+  #chatLog{bottom:calc(186px + env(safe-area-inset-bottom,0px))!important}
 }
 
 /* ---------- mission modal ---------- */
@@ -364,6 +366,15 @@ h1 span{display:inline-block}
 .tmteams small{font-family:var(--body);font-size:11px;opacity:.8}
 .tmzoom{display:flex;gap:4px}
 @media (max-width:640px){.tmb{font-size:15px;padding:5px 8px}}
+.keys{display:none!important}
+.chatbar{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(74px + env(safe-area-inset-bottom,0px));width:min(420px,calc(100vw - 24px));display:flex;gap:6px;padding:6px;box-sizing:border-box}
+.chatbar input{flex:1;min-width:0;background:#0a0909;border:1.5px solid #57524d;border-radius:10px 3px 10px 3px;color:var(--ink);font-size:15px;padding:8px 10px;user-select:text;-webkit-user-select:text}
+.chatbar input:focus{outline:none;border-color:var(--cyan)}
+.chatbar button{border:0;border-radius:10px 3px 10px 3px;background:var(--cyan);color:#1a0d02;font-family:var(--display);font-weight:700;font-size:17px;padding:0 14px}
+#chatLog{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(126px + env(safe-area-inset-bottom,0px));width:min(420px,calc(100vw - 24px));display:grid;gap:3px;pointer-events:none}
+#chatLog .cl{background:rgba(14,13,12,.85);border-radius:8px;padding:3px 10px;font-size:13.5px;line-height:1.45;transition:opacity 1s;word-break:break-all}
+#chatLog .cl b{color:var(--cyan);margin-right:6px}#chatLog .cl.me b{color:var(--pink)}
+#chatLog .cl.old{opacity:0}
 /* ---------- 대기실 + 교사 현황 ---------- */
 .lobby{display:grid;gap:8px;margin:4px 0 4px}
 .lrow{display:flex;align-items:center;gap:10px;background:#0f0e0d;border:1.5px solid #57524d;border-radius:14px 5px 14px 5px;padding:8px 12px}
@@ -558,6 +569,8 @@ h1 span{display:inline-block}
   <button id="listToggle" type="button">미션 목록</button>
   <div class="keys">이동: 방향키·WASD 또는 화면 드래그 · 상호작용: 스페이스</div>
   <div class="emotes pnl" id="emotes"></div>
+  <div id="chatLog" aria-live="polite"></div>
+  <form class="chatbar pnl" id="chatForm" autocomplete="off"><input id="chatIn" maxlength="40" placeholder="모둠 채팅 (/ 키로 바로 쓰기)" aria-label="모둠 채팅"><button type="submit">보내기</button></form>
   <button class="act" id="actBtn" type="button" hidden></button>
   <div class="pnl r2bar" id="r2bar" hidden aria-live="polite"></div>
 </div>
@@ -929,9 +942,9 @@ function normPeer(p) {
   if (!rc) { rc = { rx: x, ry: y, em: null, emAt: 0 }; remoteCache.set(pr.sid, rc); }
   const em = pr.em && typeof pr.em.e === 'string' ? pr.em : null;
   if (em && (!rc.em || rc.em.t !== em.t)) { rc.em = em; rc.emAt = performance.now(); }
-  return { sid: pr.sid, nick: String(pr.nick || '친구').slice(0, 8), team: +pr.team || 0, role: pr.role, av: safeAv(pr.av), x, y, fx: +pr.fx || 0, fy: +pr.fy || 1, mv: !!pr.mv, area: String(pr.area || 'hall'), sol, clr, st: +pr.st || 0, pen: +pr.pen || 0, done: +pr.done || 0, pl: String(pr.pl || '').slice(0, 60), jl: !!pr.jl, r2g: pr.r2g && typeof pr.r2g === 'object' ? pr.r2g : null, r2a: String(pr.r2a || ''), r2go: !!pr.r2go, bn: +pr.bn || 0, jt: +pr.jt || 0, go: +pr.go || 0, lob: !!pr.lob, w6: new Set(String(pr.w6 || '').split(',').filter(Boolean)), rc, seed: (pr.sid || '').length * 3.7 };
+  return { sid: pr.sid, nick: String(pr.nick || '친구').slice(0, 8), team: +pr.team || 0, role: pr.role, av: safeAv(pr.av), x, y, fx: +pr.fx || 0, fy: +pr.fy || 1, mv: !!pr.mv, area: String(pr.area || 'hall'), sol, clr, st: +pr.st || 0, pen: +pr.pen || 0, done: +pr.done || 0, pl: String(pr.pl || '').slice(0, 60), jl: !!pr.jl, r2g: pr.r2g && typeof pr.r2g === 'object' ? pr.r2g : null, r2a: String(pr.r2a || ''), r2go: !!pr.r2go, bn: +pr.bn || 0, jt: +pr.jt || 0, go: +pr.go || 0, lob: !!pr.lob, msg: pr.msg && typeof pr.msg.t === 'string' ? { t: String(pr.msg.t).slice(0, 40), id: +pr.msg.id || 0 } : null, w6: new Set(String(pr.w6 || '').split(',').filter(Boolean)), rc, seed: (pr.sid || '').length * 3.7 };
 }
-function meObj() { return { sid: S.sid, nick: S.nick, team: S.team, av: S.av, x: S.x, y: S.y, fx: S.fx, fy: S.fy, mv: S.moving, area: S.area, sol: S.sol, clr: S.clr, st: S.st, pen: S.pen, done: S.done, jl: !!S.jl, w6: S.w6, r2g: S.r2G || null, r2a: S.r2a || '', r2go: !!S.r2go, bn: S.bn || 0, jt: S.jt || 0, go: S.go || 0, lob: !!S.lob, isMe: true, seed: 1 }; }
+function meObj() { return { sid: S.sid, nick: S.nick, team: S.team, av: S.av, x: S.x, y: S.y, fx: S.fx, fy: S.fy, mv: S.moving, area: S.area, sol: S.sol, clr: S.clr, st: S.st, pen: S.pen, done: S.done, jl: !!S.jl, w6: S.w6, r2g: S.r2G || null, r2a: S.r2a || '', r2go: !!S.r2go, bn: S.bn || 0, jt: S.jt || 0, go: S.go || 0, lob: !!S.lob, msg: S.msg || null, isMe: true, seed: 1 }; }
 let teamCache = [];
 function onPeers() { if (S.screen === 'teacher') renderTeacher(); if (S.screen === 'lobby') renderLobby(); }
 function teammates() {
@@ -945,7 +958,7 @@ function teamElapsed(mem) { const st = Math.min(...mem.map(m => m.st || Infinity
 
 function pushMe(full) {
   const p = { x: Math.round(S.x * 100) / 100, y: Math.round(S.y * 100) / 100, fx: Math.round(S.fx * 10) / 10, fy: Math.round(S.fy * 10) / 10, mv: S.moving, area: S.area };
-  if (full) Object.assign(p, { role: S.role, sid: S.sid, nick: S.nick, team: S.team, av: S.av, sol: [...S.sol].join(','), clr: [...S.clr].join(','), st: S.st, pen: S.pen, done: S.done, pl: S.pl, em: S.em, jl: S.jl ? 1 : 0, w6: [...S.w6].join(','), r2g: S.r2G || null, r2a: S.r2a || '', r2go: S.r2go ? 1 : 0, bn: S.bn || 0, jt: S.jt || 0, go: S.go || 0, lob: S.lob ? 1 : 0 });
+  if (full) Object.assign(p, { role: S.role, sid: S.sid, nick: S.nick, team: S.team, av: S.av, sol: [...S.sol].join(','), clr: [...S.clr].join(','), st: S.st, pen: S.pen, done: S.done, pl: S.pl, em: S.em, jl: S.jl ? 1 : 0, w6: [...S.w6].join(','), r2g: S.r2G || null, r2a: S.r2a || '', r2go: S.r2go ? 1 : 0, bn: S.bn || 0, jt: S.jt || 0, go: S.go || 0, lob: S.lob ? 1 : 0, msg: S.msg || null });
   Net.push(p);
 }
 
@@ -1286,6 +1299,21 @@ function nameTag(x, y, nick, me, k) {
   const w = ctx.measureText(nick).width + 14 * k; ctx.fillStyle = me ? '#c8161d' : '#ece6dc'; rr(ctx, x - w / 2, y - 9 * k, w, 18 * k, 4 * k); ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.stroke();
   ctx.fillStyle = me ? '#fff' : '#151312'; ctx.fillText(nick, x, y + .5);
 }
+const CHAT = new Map(); // sid -> {id, t, at}
+const BAD = ['씨발', '시발', '씨빨', 'ㅅㅂ', 'ㅆㅂ', '병신', 'ㅂㅅ', '개새', '새끼', '좆', '존나', 'ㅈㄴ', '지랄', '미친놈', '꺼져', 'fuck', 'shit'];
+const cleanText = s => { let o = String(s || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 40); BAD.forEach(w => { o = o.split(w).join('♥'.repeat(w.length)); }); return o; };
+function seeChat(m) { if (!m.msg || !m.msg.id) return false; const c = CHAT.get(m.sid); if (c && c.id === m.msg.id) return false; const first = !c; const fresh = !first || Date.now() - m.msg.id < 8000; CHAT.set(m.sid, { id: m.msg.id, t: cleanText(m.msg.t), at: fresh ? performance.now() : 0 }); return fresh; }
+function chatBubble(x, y, text, k, mine) {
+  const fs = Math.round(13 * k); ctx.font = `700 ${fs}px "Noto Sans KR", sans-serif`; needGlyphs(text);
+  const maxW = 170 * k, words = [...text], lines = []; let cur = '';
+  for (const ch of words) { if (ctx.measureText(cur + ch).width > maxW && cur) { lines.push(cur); cur = ch; } else cur += ch; } if (cur) lines.push(cur);
+  const lh = fs * 1.35, w = Math.min(maxW, Math.max(...lines.map(l => ctx.measureText(l).width))) + 16 * k, h = lines.length * lh + 10 * k;
+  const bx = x - w / 2, by = y - h - 8 * k;
+  ctx.fillStyle = mine ? '#ffe7d6' : '#ece6dc'; rr(ctx, bx, by, w, h, 8 * k); ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - 6 * k, by + h - 1); ctx.lineTo(x + 6 * k, by + h - 1); ctx.lineTo(x, by + h + 8 * k); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(x - 6 * k, by + h); ctx.lineTo(x, by + h + 8 * k); ctx.lineTo(x + 6 * k, by + h); ctx.stroke();
+  ctx.fillStyle = '#151312'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; lines.forEach((l, i) => ctx.fillText(l, x, by + 5 * k + lh * (i + .5)));
+}
+const CHAT_MS = 6500;
 function bubble(x, y, e, k) { ctx.fillStyle = '#ece6dc'; rr(ctx, x - 17 * k, y - 34 * k, 34 * k, 28 * k, 10 * k); ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = '#ece6dc'; ctx.beginPath(); ctx.moveTo(x - 5 * k, y - 7 * k); ctx.lineTo(x + 5 * k, y - 7 * k); ctx.lineTo(x, y); ctx.fill(); ctx.font = `${18 * k}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(e, x, y - 20 * k); }
 
 const confetti = [];
@@ -1322,7 +1350,9 @@ function render(t, dt) {
     if (px < -60 || py < -90 || px > VW + 60 || py > VH + 60) continue;
     drawChar(ctx, px, py, m.av, k, t, m.isMe ? m.moving : m.mv, m.fx, m.fy, m.seed);
     if (!m.isMe) nameTag(px, py - 58 * k, m.nick, false, k);
-    if (!m.isMe && m.rc.em && performance.now() - m.rc.emAt < 3500) bubble(px, py - 70 * k, m.rc.em.e, k);
+    const cm = !m.isMe && CHAT.get(m.sid);
+    if (cm && performance.now() - cm.at < CHAT_MS) chatBubble(px, py - 66 * k, cm.t, k, false);
+    else if (!m.isMe && m.rc.em && performance.now() - m.rc.emAt < 3500) bubble(px, py - 70 * k, m.rc.em.e, k);
   }
   // 어둠 (클리어 안 한 방)
   if (inGame) {
@@ -1354,7 +1384,8 @@ function render(t, dt) {
     const me = mem[0]; const mx = S.x * T - sx, my = S.y * T - sy;
     drawChar(ctx, mx, my, me.av, k, t, S.moving, S.fx, S.fy, 1);
     nameTag(mx, my - 58 * k, S.nick, true, k);
-    if (S.em && performance.now() - S.emAt < 3500) bubble(mx, my - 70 * k, S.em.e, k);
+    if (S.msg && performance.now() - (S.msgAt || 0) < CHAT_MS) chatBubble(mx, my - 66 * k, S.msg.t, k, true);
+    else if (S.em && performance.now() - S.emAt < 3500) bubble(mx, my - 70 * k, S.em.e, k);
   }
   // 방 표지판
   ctx.textBaseline = 'middle';
@@ -1419,8 +1450,13 @@ function updateMe(dt, now) {
 
 /* ================= 게임 진행 ================= */
 let lastHud = 0, lastSave = 0;
+function addChatLog(nick, text, mine) {
+  const log = $('#chatLog'); const d = document.createElement('div'); d.className = 'cl' + (mine ? ' me' : ''); const b = document.createElement('b'); b.textContent = nick; const s = document.createElement('span'); s.textContent = text; d.append(b, s); log.appendChild(d);
+  while (log.children.length > 5) log.firstChild.remove(); setTimeout(() => d.classList.add('old'), 15000);
+}
 function gameTick(now) {
   if (S.screen !== 'game') return;
+  (teamCache.length ? teamCache : []).forEach(m => { if (!m.isMe && seeChat(m)) { const c = CHAT.get(m.sid); addChatLog(m.nick, c.t, false); SND.tone(1250, .06, { type: 'sine', vol: .08 }); } });
   r2Tick(now);
   const mem = teamCache.length ? teamCache : members();
   // 방 클리어 감지
@@ -1989,6 +2025,13 @@ function show(name) {
   if (name === 'game') { renderHud(); renderList(); updateAction(); }
 }
 
+/* ---------- 모둠 채팅 ---------- */
+$('#chatForm').onsubmit = e => {
+  e.preventDefault(); const inp = $('#chatIn'); const t = cleanText(inp.value); if (!t) return;
+  const now = Date.now(); if (now - (S.lastChat || 0) < 1200) { toast('조금 천천히 보내요!', 'bad'); return; }
+  S.lastChat = now; S.msg = { t, id: now }; S.msgAt = performance.now(); Net.push({ msg: S.msg }); addChatLog(S.nick, t, true); inp.value = ''; SND.click();
+};
+addEventListener('keydown', e => { if (S.screen === 'game' && e.key === '/' && document.activeElement !== $('#chatIn') && $('#modal').hidden) { e.preventDefault(); $('#chatIn').focus(); } if (e.key === 'Escape' && document.activeElement === $('#chatIn')) $('#chatIn').blur(); });
 /* ---------- 분위기 ---------- */
 $('#sndBtn').onclick = e => { e.stopPropagation(); SND.init(); SND.setOn(!SND.on); if (SND.on) SND.click(); };
 SND.setOn(SND.on);
@@ -2208,7 +2251,9 @@ function renderTeacherMap(t, dt) {
       ctx.font = `700 ${Math.round(12 * k)}px "Noto Sans KR", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const tw = ctx.measureText(label).width + 14 * k; ctx.fillStyle = teamCol(m.team); rr(ctx, px - tw / 2, py - 67 * k, tw, 18 * k, 4 * k); ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.fillStyle = '#111'; ctx.fillText(label, px, py - 58 * k);
-      if (m.rc.em && performance.now() - m.rc.emAt < 3500) bubble(px, py - 76 * k, m.rc.em.e, k);
+      seeChat(m); const cm = CHAT.get(m.sid);
+      if (cm && performance.now() - cm.at < CHAT_MS) chatBubble(px, py - 72 * k, cm.t, k, false);
+      else if (m.rc.em && performance.now() - m.rc.emAt < 3500) bubble(px, py - 76 * k, m.rc.em.e, k);
     });
     ctx.textBaseline = 'middle';
     for (const a of AREAS) {
