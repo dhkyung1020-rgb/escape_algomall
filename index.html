@@ -375,6 +375,10 @@ h1 span{display:inline-block}
 #chatLog .cl{background:rgba(14,13,12,.85);border-radius:8px;padding:3px 10px;font-size:13.5px;line-height:1.45;transition:opacity 1s;word-break:break-all}
 #chatLog .cl b{color:var(--cyan);margin-right:6px}#chatLog .cl.me b{color:var(--pink)}
 #chatLog .cl.old{opacity:0}
+#scrClosed.siren,#scrTeacher.siren{animation:siren .5s steps(2) infinite}
+@keyframes siren{0%{background-color:rgba(200,22,29,.55)}100%{background-color:rgba(8,7,7,.9)}}
+#scrClosed .okc{color:var(--ok)}#scrClosed .noc{color:var(--bad)}
+.btn:disabled.alt{opacity:.45}
 /* ---------- 대기실 + 교사 현황 ---------- */
 .lobby{display:grid;gap:8px;margin:4px 0 4px}
 .lrow{display:flex;align-items:center;gap:10px;background:#0f0e0d;border:1.5px solid #57524d;border-radius:14px 5px 14px 5px;padding:8px 12px}
@@ -544,10 +548,22 @@ h1 span{display:inline-block}
   <div class="tbox">
     <header>
       <div><div class="sign" style="justify-content:flex-start"><span>알고몰 관리실</span></div><h1>선생님 화면</h1></div>
-      <div class="row" style="flex-wrap:wrap"><span class="pill" id="tInfo"></span><label class="pill" for="tSize">모둠당 인원 <input id="tSize" type="number" min="1" max="7" value="4" style="width:42px;background:transparent;border:0;color:var(--ink);font:inherit;text-align:center"></label><span class="pill" id="tConn"><i></i><span>연결 확인 중</span></span><button class="btn" id="btnTMap" style="width:auto;margin:0;padding:8px 16px;font-size:19px" type="button">🗺️ 지도 보기</button><button class="btn ghost" id="btnTBack" style="width:auto;margin:0" type="button">처음으로</button></div>
+      <div class="row" style="flex-wrap:wrap"><span class="pill" id="tInfo"></span><label class="pill" for="tSize">모둠당 인원 <input id="tSize" type="number" min="1" max="7" value="4" style="width:42px;background:transparent;border:0;color:var(--ink);font:inherit;text-align:center"></label><span class="pill" id="tConn"><i></i><span>연결 확인 중</span></span><span class="pill" id="tState">대기 중</span><button class="btn alt" id="btnTStart" style="width:auto;margin:0;padding:8px 14px;font-size:18px" type="button">▶ 일괄 시작</button><button class="btn" id="btnTEnd" style="width:auto;margin:0;padding:8px 14px;font-size:18px;background:#5a0a0d" type="button">⛔ 알고몰 폐쇄</button><button class="btn ghost" id="btnTReset" hidden style="width:auto;margin:0;padding:8px 12px" type="button">↺ 다시 열기</button><button class="btn" id="btnTMap" style="width:auto;margin:0;padding:8px 16px;font-size:19px" type="button">🗺️ 지도 보기</button><button class="btn ghost" id="btnTBack" style="width:auto;margin:0" type="button">처음으로</button></div>
     </header>
     <div id="tRank"></div>
     <div class="tgrid" id="tGrid"></div>
+  </div>
+</section>
+
+<!-- 알고몰 폐쇄 -->
+<section id="scrClosed" class="screen" hidden>
+  <div class="card end" style="max-width:480px;text-align:center">
+    <div class="sign"><span>🚨 알고몰 폐쇄 경보 🚨</span></div>
+    <h1 style="font-size:78px">알고몰 폐쇄</h1>
+    <div id="clCount" class="time" style="color:var(--bad)">10</div>
+    <p class="sub" style="margin-top:6px">선생님이 알고몰의 문을 닫았어요. 모두 그 자리에서 멈춰요!</p>
+    <p class="sub" id="clTeam"></p>
+    <p class="sub" id="clRes" style="font-size:18px;color:var(--ink)"></p>
   </div>
 </section>
 
@@ -899,7 +915,19 @@ const Net = {
     if (this.mode !== 'firebase' || this.dead) return; code = safeCode(code); if (this.code === code) return;
     if (this.listRef) this.listRef.off(); this.code = code; this.disc = false;
     this.listRef = this.fb.ref('algomall/' + code + '/players');
+    if (this.ctlRef) this.ctlRef.off(); this.ctl = {};
+    this.ctlRef = this.fb.ref('algomall/' + code + '/control'); this.ctlRef.on('value', s => { this.ctl = s.val() || {}; checkControl(); }, () => { });
     this.listRef.on('value', s => { const v = s.val() || {}; this.peers = Object.entries(v).map(([k, p]) => { const mine = k === S.sid && S.role === 'student'; return { peer: k, presence: p || {}, updatedAt: (p && p._t) || 0, isMe: mine, sameTab: mine }; }); onPeers(); });
+  },
+  getCtl() {
+    if (this.mode === 'firebase') return this.ctl || {};
+    let c = {}; this.peers.forEach(p => { const k = p.presence && p.presence.ctl; if (p.presence && p.presence.role === 'teacher' && k && typeof k === 'object') { if ((+k.t || 0) >= (+c.t || 0)) c = { start: +k.start || 0, end: +k.end || 0, t: +k.t || 0 }; } }); return c;
+  },
+  setCtl(c) {
+    c = Object.assign({ start: 0, end: 0 }, c, { t: Date.now() });
+    if (this.mode === 'firebase' && this.code) Promise.resolve(this.fb.ref('algomall/' + this.code + '/control').set(c)).catch(() => toast('Firebase 보안 규칙에 control 항목이 있는지 확인해 주세요.', 'bad'));
+    else if (this.room) this.room.presence({ role: 'teacher', ctl: c }).catch(() => { });
+    this.ctl = c; checkControl();
   },
   usable() { return this.mode === 'firebase' ? (!!this.fb && !this.dead) : (!!this.room && !this.dead); },
   push(p) {
@@ -946,7 +974,7 @@ function normPeer(p) {
 }
 function meObj() { return { sid: S.sid, nick: S.nick, team: S.team, av: S.av, x: S.x, y: S.y, fx: S.fx, fy: S.fy, mv: S.moving, area: S.area, sol: S.sol, clr: S.clr, st: S.st, pen: S.pen, done: S.done, jl: !!S.jl, w6: S.w6, r2g: S.r2G || null, r2a: S.r2a || '', r2go: !!S.r2go, bn: S.bn || 0, jt: S.jt || 0, go: S.go || 0, lob: !!S.lob, msg: S.msg || null, isMe: true, seed: 1 }; }
 let teamCache = [];
-function onPeers() { if (S.screen === 'teacher') renderTeacher(); if (S.screen === 'lobby') renderLobby(); }
+function onPeers() { if (S.screen === 'teacher') renderTeacher(); if (S.screen === 'lobby') renderLobby(); if (Net.mode === 'claude') checkControl(); }
 function teammates() {
   if (!S.online) return bots;
   return Net.others().map(normPeer).filter(m => m.role === 'student' && m.team === S.team && m.sid !== S.sid);
@@ -954,7 +982,7 @@ function teammates() {
 function members() { teamCache = [meObj(), ...teammates()]; return teamCache; }
 const isCleared = (rid, mem) => mem.some(m => m.clr.has(rid)) || mem.every(m => m.sol.has(rid));
 function doorOpen() { const mem = teamCache.length ? teamCache : [meObj()]; return mem.some(m => m.clr.has('door')); }
-function teamElapsed(mem) { const st = Math.min(...mem.map(m => m.st || Infinity)); if (!isFinite(st)) return 0; return (Date.now() - st) / 1000 + mem.reduce((a, m) => a + (m.pen || 0), 0); }
+function teamElapsed(mem) { const st = Math.min(...mem.map(m => m.st || Infinity)); if (!isFinite(st)) return 0; const endT = (Net.getCtl && Net.getCtl().end) || 0; const nowT = endT && endT > st ? Math.min(Date.now(), endT) : Date.now(); return (nowT - st) / 1000 + mem.reduce((a, m) => a + (m.pen || 0), 0); }
 
 function pushMe(full) {
   const p = { x: Math.round(S.x * 100) / 100, y: Math.round(S.y * 100) / 100, fx: Math.round(S.fx * 10) / 10, fy: Math.round(S.fy * 10) / 10, mv: S.moving, area: S.area };
@@ -2020,11 +2048,43 @@ function toast(msg, kind) { const d = document.createElement('div'); d.className
 function show(name) {
   S.screen = name;
   $('#scrLogin').hidden = name !== 'login'; $('#scrAvatar').hidden = name !== 'avatar'; $('#scrStory').hidden = name !== 'story';
-  $('#scrTeacher').hidden = name !== 'teacher'; $('#scrEnd').hidden = name !== 'end'; $('#scrLobby').hidden = name !== 'lobby'; $('#tmapBar').hidden = name !== 'tmap';
+  $('#scrTeacher').hidden = name !== 'teacher'; $('#scrEnd').hidden = name !== 'end'; $('#scrLobby').hidden = name !== 'lobby'; $('#scrClosed').hidden = name !== 'closed'; $('#tmapBar').hidden = name !== 'tmap';
   $('#hud').hidden = name !== 'game';
   if (name === 'game') { renderHud(); renderList(); updateAction(); }
 }
 
+/* ---------- 선생님 일괄 시작 · 알고몰 폐쇄 ---------- */
+function checkControl() {
+  const c = Net.getCtl ? Net.getCtl() : {}; if (!c) return;
+  if (S.screen === 'teacher' || S.screen === 'tmap') { updTeacherCtl(); return; }
+  if (S.role !== 'student' || !S.online) return;
+  if (c.end && S.closedSeen !== c.end && ['lobby', 'story', 'game', 'end'].includes(S.screen)) { S.closedSeen = c.end; showClosed(true); return; }
+  if (c.start && !c.end && S.screen === 'lobby') startTeam(c.start);
+}
+setInterval(checkControl, 700);
+SND.alarm = function (sec = 10) {
+  if (!this.ctx) return; for (let s = 0; s < sec; s += 1) for (let b = 0; b < 3; b++) { this.tone(b % 2 ? 740 : 988, .13, { at: s + b * .2, type: 'square', vol: .12 }); }
+  this.tone(110, sec, { type: 'sawtooth', vol: .05, filter: 'lowpass', ff: 400 });
+};
+function showClosed(alarm) {
+  closeMission(); if (typeof JAIL !== 'undefined' && JAIL.active) { if (JAIL.stop) try { JAIL.stop(); } catch (e) { } JAIL.active = false; $('#jail').hidden = true; S.jl = 0; }
+  const mem = members(); const got = ROOMS6.filter(a => isCleared(a.id, mem)).length; const esc2 = Math.min(...mem.map(m => m.done || Infinity));
+  $('#clTeam').textContent = `${teamName(S.team)} · 모둠원 ${mem.length}명`;
+  $('#clRes').innerHTML = isFinite(esc2) ? `<b class="okc">탈출 성공!</b> 최종 기록 ${fmt(Math.max(0, esc2 - teamBonus(mem)))}` : `<b class="noc">탈출 실패…</b> 코드 조각 ${got}/6개를 모았어요`;
+  show('closed'); SND.init(); SND.stopBgm();
+  const scr = $('#scrClosed'); scr.classList.toggle('siren', !!alarm);
+  if (alarm) { SND.alarm(10); SND.laugh(10.2, .5, .9); let n = 10; $('#clCount').textContent = n; $('#clCount').hidden = false; const iv = setInterval(() => { n--; $('#clCount').textContent = n; if (n <= 0) { clearInterval(iv); $('#clCount').hidden = true; scr.classList.remove('siren'); } }, 1000); }
+  else $('#clCount').hidden = true;
+}
+const armBtn = (btn, label, act) => { btn.onclick = () => { if (btn.dataset.arm) { delete btn.dataset.arm; btn.textContent = label; act(); return; } btn.dataset.arm = 1; btn.textContent = '정말요? 한 번 더 누르기'; setTimeout(() => { if (btn.dataset.arm) { delete btn.dataset.arm; btn.textContent = label; } }, 3000); }; };
+armBtn($('#btnTStart'), '▶ 일괄 시작', () => { Net.setCtl({ start: Date.now(), end: 0 }); toast('모든 모둠의 탈출을 시작했어요!', 'gold'); });
+armBtn($('#btnTEnd'), '⛔ 알고몰 폐쇄', () => { const c = Net.getCtl(); Net.setCtl({ start: c.start || 0, end: Date.now() }); SND.init(); SND.alarm(10); $('#scrTeacher').classList.add('siren'); setTimeout(() => $('#scrTeacher').classList.remove('siren'), 10000); });
+armBtn($('#btnTReset'), '↺ 다시 열기', () => { Net.setCtl({ start: 0, end: 0 }); toast('알고몰을 다시 열었어요. 새 수업은 새 게임방 코드를 쓰는 것을 추천해요.', 'gold'); });
+function updTeacherCtl() {
+  const c = Net.getCtl(), p = $('#tState'); if (!p) return;
+  p.textContent = c.end ? '⛔ 폐쇄됨' : c.start ? '▶ 진행 중' : '대기 중'; p.className = 'pill ' + (c.end ? 'off' : c.start ? 'on' : '');
+  $('#btnTStart').disabled = !!c.start || !!c.end; $('#btnTEnd').disabled = !!c.end; $('#btnTReset').hidden = !c.end;
+}
 /* ---------- 모둠 채팅 ---------- */
 $('#chatForm').onsubmit = e => {
   e.preventDefault(); const inp = $('#chatIn'); const t = cleanText(inp.value); if (!t) return;
@@ -2083,7 +2143,7 @@ $('#loginForm').onsubmit = e => {
   else if (saved && saved.av) S.av = safeAv(saved.av);
   buildAvatarUI(); show('avatar');
 };
-$('#btnTeacher').onclick = () => { S.role = 'teacher'; if (Net.mode === 'firebase') Net.join($('#inCode').value); else if (Net.usable()) Net.room.presence({ role: 'teacher' }).catch(() => { }); show('teacher'); renderTeacher(); updConn(); };
+$('#btnTeacher').onclick = () => { setTimeout(updTeacherCtl, 300); S.role = 'teacher'; if (Net.mode === 'firebase') Net.join($('#inCode').value); else if (Net.usable()) Net.room.presence({ role: 'teacher' }).catch(() => { }); show('teacher'); renderTeacher(); updConn(); };
 $('#btnTBack').onclick = () => { S.role = 'student'; show('login'); };
 
 /* ---------- 아바타 ---------- */
@@ -2117,7 +2177,7 @@ const teamGo = mem => Math.max(0, ...mem.map(m => +m.go || 0));
 function beginGame() { if (S.sd) enterGame(); else startStory(); }
 function enterOrLobby() {
   if (!S.online || S.st) { S.lob = 0; beginGame(); return; }
-  const g = teamGo(teamNow()); if (g) { startTeam(g); return; }
+  const g = teamGo(teamNow()) || (Net.getCtl().start || 0); if (g && !Net.getCtl().end) { startTeam(g); return; }
   S.lob = 1; pushMe(true); show('lobby'); renderLobby.sig = ''; renderLobby();
 }
 function startTeam(go) { S.go = go; S.st = go; S.lob = 0; save(); pushMe(true); beginGame(); }
@@ -2133,7 +2193,7 @@ function renderLobby() {
   $('#lobSub').innerHTML = `지금 <b>${mem.length}명</b> 접속했어요. 모둠원이 모두 들어오면 방장이 탈출을 시작해요.`;
   $('#lobList').innerHTML = mem.slice().sort((a, b) => ((a.jt || 9e15) - (b.jt || 9e15))).map(m => `<div class="lrow ${m.sid === host.sid ? 'host' : ''}"><img alt="" src="${avIcon(m.av)}"><span><b>${esc(m.nick)}</b>${m.isMe ? ' (나)' : ''}<small>${esc(m.sid)}</small></span><em>${m.sid === host.sid ? '👑 방장' : '접속 완료'}</em></div>`).join('');
   const go = $('#btnGo'); go.hidden = !iAmHost; go.textContent = `모두 모였어요! 탈출 시작 (${mem.length}명)`;
-  $('#lobWait').textContent = iAmHost ? '모둠원이 다 들어왔는지 확인하고 눌러 주세요. 늦게 온 친구는 바로 따라 들어와요.' : `방장 ${host.nick}이(가) 시작하기를 기다리는 중…`;
+  $('#lobWait').textContent = iAmHost ? '모둠원이 다 들어왔는지 확인하고 눌러 주세요. 선생님이 한꺼번에 시작할 수도 있어요. 늦게 온 친구는 바로 따라 들어와요.' : `방장 ${host.nick}이(가) 시작하기를 기다리는 중…`;
 }
 $('#btnGo').onclick = () => { const mem = teamNow(); if (hostOf(mem).sid !== S.sid) { renderLobby(); return; } startTeam(Date.now()); };
 setInterval(() => { if (S.screen === 'lobby') renderLobby(); }, 700);
@@ -2187,14 +2247,16 @@ function renderTeacher() {
     const esc2 = Math.min(...mem.map(m => m.done || Infinity)); const escaped = isFinite(esc2);
     const bonus = teamBonus(mem); return { t, mem, done, n6, escaped, bonus, raw: escaped ? esc2 : teamElapsed(mem), time: escaped ? Math.max(0, esc2 - bonus) : teamElapsed(mem) };
   });
+  const ended = !!Net.getCtl().end;
   const ranked = rows.filter(r => !r.empty && r.escaped && !isG(r.t)).sort((a, b) => a.time - b.time);
+  const notEsc = ended ? rows.filter(r => !r.empty && !r.escaped && !isG(r.t) && r.mem.some(m => m.st)).sort((a, b) => (b.n6 - a.n6) || (b.bonus - a.bonus)) : [];
   const granked = rows.filter(r => !r.empty && r.escaped && isG(r.t)).sort((a, b) => a.time - b.time);
-  $('#tRank').innerHTML = ranked.length ? `<div class="tcard esc" style="margin-bottom:12px"><h3>탈출 순위</h3><div class="tmem">${ranked.map((r, i) => `<b style="color:var(--gold)">${i + 1}위</b> ${teamName(r.t)} · ${fmt(r.time)} <span style="color:var(--mute)">(탈출 ${fmt(r.raw)} − 보너스 ${r.bonus}초)</span>`).join('<br>')}</div></div>` : '';
+  $('#tRank').innerHTML = ranked.length || notEsc.length ? `<div class="tcard esc" style="margin-bottom:12px"><h3>${ended ? '최종 순위' : '탈출 순위'}</h3><div class="tmem">${ranked.map((r, i) => `<b style="color:var(--gold)">${i + 1}위</b> ${teamName(r.t)} · ${fmt(r.time)} <span style="color:var(--mute)">(탈출 ${fmt(r.raw)} − 보너스 ${r.bonus}초)</span>`).join('<br>')}${notEsc.map((r, i) => `${ranked.length || i ? '<br>' : ''}<b style="color:var(--mute)">${ranked.length + i + 1}위</b> ${teamName(r.t)} · 탈출 실패 · 코드 조각 ${r.n6}/6 · 보너스 ${r.bonus}초`).join('')}</div></div>` : '';
   if (granked.length) $('#tRank').innerHTML += `<div class="tcard" style="margin-bottom:12px"><h3>체험 모둠 기록 (순위 제외)</h3><div class="tmem">${granked.map(r => `${teamName(r.t)} · ${fmt(r.time)}`).join('<br>')}</div></div>`;
   $('#tGrid').innerHTML = rows.map(r => {
     if (r.empty) return `<div class="tcard dim"><h3>${teamName(r.t)} <span class="chip0">접속 0/${size}</span></h3><div class="tmem">아직 아무도 들어오지 않았어요.</div></div>`;
     const host = hostOf(r.mem), started = r.mem.some(m => m.go || m.st), full = r.mem.length >= size;
-    const stat = r.escaped ? '<b class="st esc">탈출</b>' : started ? '<b class="st run">진행 중</b>' : '<b class="st wait">대기실</b>';
+    const stat = r.escaped ? '<b class="st esc">탈출</b>' : Net.getCtl().end && started ? '<b class="st wait">종료</b>' : started ? '<b class="st run">진행 중</b>' : '<b class="st wait">대기실</b>';
     return `<div class="tcard ${r.escaped ? 'esc' : ''} ${isG(r.t) ? 'guest' : ''}" data-team="${r.t}" title="눌러서 이 모둠만 지도에서 보기" style="cursor:pointer"><h3>${teamName(r.t)} ${stat}<span>${r.escaped ? '최종 ' + fmt(r.time) : started ? '진행 ' + fmt(r.time) : ''}</span></h3>
     <div class="cnt ${full ? 'full' : ''}">${full ? '✓ 접속 완료' : '접속 중'} · ${r.mem.length}/${size}명</div>
     ${started ? `<div class="bar">${r.done.map((d, i) => `<i class="${d ? 'd' : ''}" title="${AREAS[i].name}"></i>`).join('')}</div><div class="tmem">읽기 보너스 -${r.bonus}초 · 코드 조각 ${r.n6}/6 · ${r.escaped ? '탈출 성공' : (r.mem.some(m => m.clr.has('door')) ? '계산대 진입' : '방 탐색 중')}</div>` : ''}
