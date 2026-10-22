@@ -497,6 +497,9 @@ h1 span{display:inline-block}
     <button class="btn" id="btnLogin" type="submit">아바타 꾸미러 가기</button>
     <div class="row" style="justify-content:center;margin-top:14px"><span class="pill" id="connPill"><i></i><span>실시간 연결 확인 중…</span></span></div>
     <button class="link" type="button" id="btnTeacher">선생님 화면 열기</button>
+    <div id="tpwRow" hidden style="margin-top:10px"><label class="f" for="inTpw">선생님 비밀번호</label>
+    <div class="ansrow"><input class="inp" id="inTpw" type="password" inputmode="numeric" maxlength="12" autocomplete="off"><button class="btn alt" id="tpwGo" type="button">확인</button></div>
+    <div class="err" id="tpwErr"></div></div>
   </form>
 </section>
 
@@ -2143,7 +2146,12 @@ $('#loginForm').onsubmit = e => {
   else if (saved && saved.av) S.av = safeAv(saved.av);
   buildAvatarUI(); show('avatar');
 };
-$('#btnTeacher').onclick = () => { setTimeout(updTeacherCtl, 300); S.role = 'teacher'; if (Net.mode === 'firebase') Net.join($('#inCode').value); else if (Net.usable()) Net.room.presence({ role: 'teacher' }).catch(() => { }); show('teacher'); renderTeacher(); updConn(); };
+const TEACHER_PW = '2144';
+let tOk = false; try { tOk = sessionStorage.getItem('algomall:t') === '1'; } catch (e) { }
+$('#btnTeacher').onclick = () => { if (tOk) { openTeacher(); return; } $('#tpwRow').hidden = false; $('#inTpw').value = ''; $('#tpwErr').textContent = ''; setTimeout(() => $('#inTpw').focus(), 30); };
+const tryTpw = () => { if ($('#inTpw').value.trim() === TEACHER_PW) { tOk = true; try { sessionStorage.setItem('algomall:t', '1'); } catch (e) { } $('#tpwRow').hidden = true; openTeacher(); } else { $('#tpwErr').textContent = '비밀번호가 달라요.'; $('#inTpw').value = ''; SND.wrong(); } };
+$('#tpwGo').onclick = tryTpw; $('#inTpw').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tryTpw(); } });
+const openTeacher = () => { setTimeout(updTeacherCtl, 300); S.role = 'teacher'; if (Net.mode === 'firebase') Net.join($('#inCode').value); else if (Net.usable()) Net.room.presence({ role: 'teacher' }).catch(() => { }); show('teacher'); renderTeacher(); updConn(); };
 $('#btnTBack').onclick = () => { S.role = 'student'; show('login'); };
 
 /* ---------- 아바타 ---------- */
