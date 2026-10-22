@@ -355,6 +355,15 @@ h1 span{display:inline-block}
 .chip:disabled{opacity:.35;cursor:not-allowed}
 .chip.wide{grid-column:1/-1;border-style:dashed}
 .tcard.guest{border-style:dashed}
+#tmapBar{position:fixed;left:0;right:0;top:0;z-index:25;height:64px;box-sizing:border-box;padding:10px 12px;display:flex;gap:10px;align-items:center;background:rgba(14,13,12,.95);border-bottom:2px dashed #57524d}
+.tmb{border:2px solid #8d867d;background:#1a1918;color:var(--ink);border-radius:10px 3px 10px 3px;font-family:var(--display);font-weight:700;font-size:18px;padding:6px 12px;white-space:nowrap}
+.tmb.back{background:var(--pink);border-color:#f2eee8;color:#fff}
+.tmteams{flex:1;min-width:0;display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.tmteams button{flex:0 0 auto;border:2px solid var(--tc);background:#0f0e0d;color:var(--tc);border-radius:99px;padding:5px 12px;font-family:var(--display);font-weight:700;font-size:16px}
+.tmteams button[aria-pressed="true"]{background:var(--tc);color:#111}
+.tmteams small{font-family:var(--body);font-size:11px;opacity:.8}
+.tmzoom{display:flex;gap:4px}
+@media (max-width:640px){.tmb{font-size:15px;padding:5px 8px}}
 /* ---------- 대기실 + 교사 현황 ---------- */
 .lobby{display:grid;gap:8px;margin:4px 0 4px}
 .lrow{display:flex;align-items:center;gap:10px;background:#0f0e0d;border:1.5px solid #57524d;border-radius:14px 5px 14px 5px;padding:8px 12px}
@@ -524,12 +533,19 @@ h1 span{display:inline-block}
   <div class="tbox">
     <header>
       <div><div class="sign" style="justify-content:flex-start"><span>알고몰 관리실</span></div><h1>선생님 화면</h1></div>
-      <div class="row" style="flex-wrap:wrap"><span class="pill" id="tInfo"></span><label class="pill" for="tSize">모둠당 인원 <input id="tSize" type="number" min="1" max="7" value="4" style="width:42px;background:transparent;border:0;color:var(--ink);font:inherit;text-align:center"></label><span class="pill" id="tConn"><i></i><span>연결 확인 중</span></span><button class="btn ghost" id="btnTBack" style="width:auto;margin:0" type="button">처음으로</button></div>
+      <div class="row" style="flex-wrap:wrap"><span class="pill" id="tInfo"></span><label class="pill" for="tSize">모둠당 인원 <input id="tSize" type="number" min="1" max="7" value="4" style="width:42px;background:transparent;border:0;color:var(--ink);font:inherit;text-align:center"></label><span class="pill" id="tConn"><i></i><span>연결 확인 중</span></span><button class="btn" id="btnTMap" style="width:auto;margin:0;padding:8px 16px;font-size:19px" type="button">🗺️ 지도 보기</button><button class="btn ghost" id="btnTBack" style="width:auto;margin:0" type="button">처음으로</button></div>
     </header>
     <div id="tRank"></div>
     <div class="tgrid" id="tGrid"></div>
   </div>
 </section>
+
+<!-- 선생님 지도 보기 -->
+<div id="tmapBar" hidden>
+  <button type="button" class="tmb back" id="tmBack">← 현황판으로</button>
+  <div class="tmteams" id="tmTeams"></div>
+  <div class="tmzoom"><button type="button" class="tmb" id="tmOut" aria-label="축소">−</button><button type="button" class="tmb" id="tmFit">전체</button><button type="button" class="tmb" id="tmIn" aria-label="확대">+</button></div>
+</div>
 
 <!-- HUD -->
 <div id="hud" hidden>
@@ -1968,7 +1984,7 @@ function toast(msg, kind) { const d = document.createElement('div'); d.className
 function show(name) {
   S.screen = name;
   $('#scrLogin').hidden = name !== 'login'; $('#scrAvatar').hidden = name !== 'avatar'; $('#scrStory').hidden = name !== 'story';
-  $('#scrTeacher').hidden = name !== 'teacher'; $('#scrEnd').hidden = name !== 'end'; $('#scrLobby').hidden = name !== 'lobby';
+  $('#scrTeacher').hidden = name !== 'teacher'; $('#scrEnd').hidden = name !== 'end'; $('#scrLobby').hidden = name !== 'lobby'; $('#tmapBar').hidden = name !== 'tmap';
   $('#hud').hidden = name !== 'game';
   if (name === 'game') { renderHud(); renderList(); updateAction(); }
 }
@@ -2136,7 +2152,7 @@ function renderTeacher() {
     if (r.empty) return `<div class="tcard dim"><h3>${teamName(r.t)} <span class="chip0">접속 0/${size}</span></h3><div class="tmem">아직 아무도 들어오지 않았어요.</div></div>`;
     const host = hostOf(r.mem), started = r.mem.some(m => m.go || m.st), full = r.mem.length >= size;
     const stat = r.escaped ? '<b class="st esc">탈출</b>' : started ? '<b class="st run">진행 중</b>' : '<b class="st wait">대기실</b>';
-    return `<div class="tcard ${r.escaped ? 'esc' : ''} ${isG(r.t) ? 'guest' : ''}"><h3>${teamName(r.t)} ${stat}<span>${r.escaped ? '최종 ' + fmt(r.time) : started ? '진행 ' + fmt(r.time) : ''}</span></h3>
+    return `<div class="tcard ${r.escaped ? 'esc' : ''} ${isG(r.t) ? 'guest' : ''}" data-team="${r.t}" title="눌러서 이 모둠만 지도에서 보기" style="cursor:pointer"><h3>${teamName(r.t)} ${stat}<span>${r.escaped ? '최종 ' + fmt(r.time) : started ? '진행 ' + fmt(r.time) : ''}</span></h3>
     <div class="cnt ${full ? 'full' : ''}">${full ? '✓ 접속 완료' : '접속 중'} · ${r.mem.length}/${size}명</div>
     ${started ? `<div class="bar">${r.done.map((d, i) => `<i class="${d ? 'd' : ''}" title="${AREAS[i].name}"></i>`).join('')}</div><div class="tmem">읽기 보너스 -${r.bonus}초 · 코드 조각 ${r.n6}/6 · ${r.escaped ? '탈출 성공' : (r.mem.some(m => m.clr.has('door')) ? '계산대 진입' : '방 탐색 중')}</div>` : ''}
     <ul class="tlist">${r.mem.slice().sort((a, b) => (a.jt || 9e15) - (b.jt || 9e15)).map(m => `<li>${m.sid === host.sid ? '👑' : '·'} <b>${esc(m.nick)}</b> <small>${esc(m.sid)}</small> <em>${m.lob && !started ? '대기실' : m.area === 'hall' ? '복도' : esc(AREA[m.area]?.name || '')}${m.pen ? ` · 힌트 ${Math.round(m.pen / 60)}` : ''}${m.jl ? ' · 🔒감옥' : ''}</em></li>`).join('')}</ul>
@@ -2145,13 +2161,74 @@ function renderTeacher() {
 }
 setInterval(() => { if (S.screen === 'teacher') renderTeacher(); }, 1000);
 
+/* ================= 선생님 지도 보기: 모든 학생의 움직임을 한눈에 ================= */
+const TEAM_COL = ['#e0464f', '#ee7b22', '#f3bd52', '#6fd1a0', '#4fc3f7', '#7c6cff', '#d070d0', '#a0e060'];
+const teamCol = t => t >= 11 ? '#cfc8bd' : TEAM_COL[(t - 1) % TEAM_COL.length];
+const TM = { z: 0, cx: MW / 2, cy: MH / 2, filter: 0, drag: null };
+function tmFit() { const top = 64; TM.z = Math.min(VW / (MW * T), (VH - top) / (MH * T)) * .98; TM.cx = MW / 2; TM.cy = MH / 2; }
+function openTeacherMap(team) { TM.filter = team || 0; tmFit(); show('tmap'); buildTmapBar(); }
+function buildTmapBar() {
+  const ps = Net.others().map(normPeer).filter(m => m.role === 'student');
+  const teams = [...new Set(ps.map(m => m.team))].sort((a, b) => a - b);
+  $('#tmTeams').innerHTML = [0, ...teams].map(t => `<button type="button" data-t="${t}" aria-pressed="${TM.filter === t}" style="--tc:${t ? teamCol(t) : '#cfc8bd'}">${t ? teamName(t) : '전체'}${t ? ` <small>${ps.filter(m => m.team === t).length}</small>` : ` <small>${ps.length}</small>`}</button>`).join('');
+}
+$('#tmTeams').onclick = e => { const b = e.target.closest('button'); if (!b) return; TM.filter = +b.dataset.t; buildTmapBar(); };
+$('#tmBack').onclick = () => { show('teacher'); renderTeacher(); };
+$('#tmFit').onclick = () => tmFit();
+$('#tmIn').onclick = () => { TM.z = Math.min(2.2, TM.z * 1.25); };
+$('#tmOut').onclick = () => { TM.z = Math.max(.15, TM.z / 1.25); };
+$('#btnTMap').onclick = () => openTeacherMap(0);
+$('#tGrid').addEventListener('click', e => { const c = e.target.closest('.tcard[data-team]'); if (c) openTeacherMap(+c.dataset.team); });
+cv.addEventListener('pointerdown', e => { if (S.screen !== 'tmap') return; TM.drag = { x: e.clientX, y: e.clientY, cx: TM.cx, cy: TM.cy, id: e.pointerId }; try { cv.setPointerCapture(e.pointerId); } catch (_) { } });
+cv.addEventListener('pointermove', e => { if (S.screen !== 'tmap' || !TM.drag || e.pointerId !== TM.drag.id) return; TM.cx = TM.drag.cx - (e.clientX - TM.drag.x) / (T * TM.z); TM.cy = TM.drag.cy - (e.clientY - TM.drag.y) / (T * TM.z); });
+const tmEnd = () => { TM.drag = null; }; cv.addEventListener('pointerup', tmEnd); cv.addEventListener('pointercancel', tmEnd);
+cv.addEventListener('wheel', e => { if (S.screen !== 'tmap') return; e.preventDefault(); TM.z = clamp(TM.z * (e.deltaY < 0 ? 1.12 : 1 / 1.12), .15, 2.2); }, { passive: false });
+setInterval(() => { if (S.screen === 'tmap') buildTmapBar(); }, 2000);
+function renderTeacherMap(t, dt) {
+  const z = TM.z || 1, vw = VW / z, vh = (VH - 64) / z;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = '#080707'; ctx.fillRect(0, 0, VW, VH);
+  ctx.setTransform(DPR * z, 0, 0, DPR * z, 0, 64 * DPR);
+  const sx = Math.round(TM.cx * T - vw / 2), sy = Math.round(TM.cy * T - vh / 2);
+  const sVW = VW, sVH = VH; VW = vw; VH = vh;
+  try {
+    const mwp = MW * T, mhp = MH * T, srcX = Math.max(0, sx), srcY = Math.max(0, sy), dX = srcX - sx, dY = srcY - sy;
+    const w = Math.min(vw - dX, mwp - srcX), h = Math.min(vh - dY, mhp - srcY);
+    if (w > 0 && h > 0) ctx.drawImage(mapC, srcX * DPR, srcY * DPR, w * DPR, h * DPR, dX, dY, w, h);
+    const all = Net.others().map(normPeer).filter(m => m.role === 'student' && !m.lob);
+    const shown = TM.filter ? all.filter(m => m.team === TM.filter) : all;
+    const teamMem = TM.filter ? shown : [{ sol: new Set(), clr: new Set() }];
+    AREAS.forEach(a => drawStation(a, t, teamMem, sx, sy));
+    drawHolo(t, sx, sy, teamMem);
+    const k = T / 40;
+    shown.forEach(m => { m.rc.rx += (m.x - m.rc.rx) * Math.min(1, dt * 8); m.rc.ry += (m.y - m.rc.ry) * Math.min(1, dt * 8); });
+    shown.sort((a, b) => a.rc.ry - b.rc.ry).forEach(m => {
+      const px = m.rc.rx * T - sx, py = m.rc.ry * T - sy;
+      drawChar(ctx, px, py, m.av, k, t, m.mv, m.fx, m.fy, m.seed);
+      const label = `${m.team >= 11 ? '체험' : m.team} ${m.nick}${m.jl ? ' 🔒' : ''}`;
+      ctx.font = `700 ${Math.round(12 * k)}px "Noto Sans KR", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const tw = ctx.measureText(label).width + 14 * k; ctx.fillStyle = teamCol(m.team); rr(ctx, px - tw / 2, py - 67 * k, tw, 18 * k, 4 * k); ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = '#111'; ctx.fillText(label, px, py - 58 * k);
+      if (m.rc.em && performance.now() - m.rc.emAt < 3500) bubble(px, py - 76 * k, m.rc.em.e, k);
+    });
+    ctx.textBaseline = 'middle';
+    for (const a of AREAS) {
+      let lx, ly; if (a.id === 'fin') { lx = 23 * T; ly = 11.55 * T; } else if (a.x < 13) { lx = 15.4 * T; ly = (a.door[0][1] + .1) * T; } else { lx = 30.6 * T; ly = (a.door[0][1] + .1) * T; }
+      lx -= sx; ly -= sy; const n = all.filter(m => m.area === a.id).length;
+      const label = `${a.id === 'fin' ? '비상구 ' : a.n + ' '}${a.name}${n ? ` · ${n}명` : ''}`;
+      ctx.font = `700 ${Math.round(T * .42)}px Gaegu, sans-serif`; ctx.textAlign = 'center'; const w2 = ctx.measureText(label).width + T * .5;
+      ctx.fillStyle = '#e6dfd2'; rr(ctx, lx - w2 / 2, ly - T * .3, w2, T * .62, 4); ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = '#151312'; ctx.fillText(label, lx, ly + 1);
+    }
+  } finally { VW = sVW; VH = sVH; }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+
 /* ================= 루프 ================= */
 let lastT = performance.now();
 function loop(now) {
   const dt = Math.min(.05, (now - lastT) / 1000); lastT = now; const t = now / 1000;
   if (S.screen === 'game') { updateMe(dt, now); if (!S.online) updateBots(dt, now); members(); gameTick(now); }
   if (S.screen === 'avatar') drawPreview(t);
-  render(t, dt);
+  if (S.screen === 'tmap') renderTeacherMap(t, dt); else render(t, dt);
   requestAnimationFrame(loop);
 }
 addEventListener('resize', resize);
