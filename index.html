@@ -345,9 +345,12 @@ h1 span{display:inline-block}
 .toast.bad{background:#2a0607;color:#ffd5d5;border-color:var(--pink)}
 .mem span{border-radius:99px;background:#0e0d0c}
 @media (max-width:480px){h1{font-size:72px}.h-w{font-size:27px}}
+#sndBtn{position:fixed;z-index:55;left:12px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:42px;height:42px;border-radius:12px 4px 12px 4px;border:2px solid #8d867d;background:rgba(22,21,20,.94);font-size:20px;box-shadow:3px 4px 0 #000;padding:0}
+@media (max-width:760px){#sndBtn{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+@media (min-width:761px){#hud:not([hidden]) ~ #sndBtn{bottom:calc(16px + env(safe-area-inset-bottom,0px))}}
 /* ---------- 대기실 + 교사 현황 ---------- */
 .lobby{display:grid;gap:8px;margin:4px 0 4px}
-.lrow{display:flex;align-items:center;gap:10px;background:#0f0e0d;border:1.5px solid #57524d;border-radius:14px 5px 14px 5px;padding:8px 12px;animation:pop .3s}
+.lrow{display:flex;align-items:center;gap:10px;background:#0f0e0d;border:1.5px solid #57524d;border-radius:14px 5px 14px 5px;padding:8px 12px}
 .lrow img{width:40px;height:40px;border-radius:50%}
 .lrow span{flex:1;min-width:0;display:grid}.lrow small{color:var(--mute);font-size:12px}
 .lrow em{font-style:normal;font-size:13px;color:var(--ok);font-weight:700}
@@ -564,6 +567,7 @@ h1 span{display:inline-block}
 </div>
 
 <div id="toasts" aria-live="polite"></div>
+<button id="sndBtn" type="button" aria-label="소리 끄기">🔊</button>
 
 <script>
 (() => {
@@ -820,7 +824,7 @@ const S = {
   mission: null, litAt: {}, known: new Set(), em: null, emAt: 0, ended: false, overShown: false
 };
 const keyOf = () => 'algomall:' + S.sid;
-function save() { store.set(keyOf(), { nick: S.nick, team: S.team, av: S.av, jt: S.jt || 0, go: S.go || 0, rd: [...S.rd], bn: S.bn || 0, r2G: S.r2G || null, r2d: S.r2d || 0, w6: [...S.w6], sol: [...S.sol], clr: [...S.clr], st: S.st, pen: S.pen, hints: S.hints, done: S.done, pl: S.pl, x: S.x, y: S.y, seen: true }); }
+function save() { store.set(keyOf(), { nick: S.nick, team: S.team, av: S.av, sd: S.sd || 0, jt: S.jt || 0, go: S.go || 0, rd: [...S.rd], bn: S.bn || 0, r2G: S.r2G || null, r2d: S.r2d || 0, w6: [...S.w6], sol: [...S.sol], clr: [...S.clr], st: S.st, pen: S.pen, hints: S.hints, done: S.done, pl: S.pl, x: S.x, y: S.y, seen: true }); }
 
 /* ================= 실시간 연결(room) ================= */
 const safeCode = c => (String(c || '').trim().replace(/[.#$\[\]\/\s]/g, '').slice(0, 20) || '1반');
@@ -940,6 +944,108 @@ function updateBots(dt, now) {
     }
   });
 }
+
+/* ================= 소리: 효과음 · 배경음악 · 사악한 웃음 (Web Audio로 직접 합성) ================= */
+const SND = {
+  ctx: null, master: null, music: null, fx: null, echo: null, on: true, bgmOn: false, bgmTimers: [], nodes: [],
+  init() {
+    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => { }); return true; }
+    try {
+      const C = window.AudioContext || window.webkitAudioContext; if (!C) return false;
+      const c = this.ctx = new C();
+      this.master = c.createGain(); this.master.gain.value = this.on ? .9 : 0; this.master.connect(c.destination);
+      this.music = c.createGain(); this.music.gain.value = .32; this.music.connect(this.master);
+      this.fx = c.createGain(); this.fx.gain.value = .8; this.fx.connect(this.master);
+      // 메아리
+      const d = c.createDelay(1.5); d.delayTime.value = .33; const fb = c.createGain(); fb.gain.value = .38; const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
+      d.connect(lp); lp.connect(fb); fb.connect(d); const wet = c.createGain(); wet.gain.value = .45; lp.connect(wet); wet.connect(this.master);
+      this.echo = d;
+      return true;
+    } catch (e) { return false; }
+  },
+  setOn(v) { this.on = v; store.set('algomall:snd', v ? 1 : 0); if (this.master) this.master.gain.setTargetAtTime(v ? .9 : 0, this.ctx.currentTime, .05); const b = $('#sndBtn'); if (b) { b.textContent = v ? '🔊' : '🔇'; b.setAttribute('aria-label', v ? '소리 끄기' : '소리 켜기'); } },
+  t() { return this.ctx ? this.ctx.currentTime : 0; },
+  tone(f, dur, o = {}) {
+    if (!this.ctx) return; const c = this.ctx, t0 = c.currentTime + (o.at || 0);
+    const os = c.createOscillator(), g = c.createGain(); os.type = o.type || 'sine'; os.frequency.setValueAtTime(f, t0);
+    if (o.to) os.frequency.exponentialRampToValueAtTime(Math.max(20, o.to), t0 + dur);
+    if (o.detune) os.detune.value = o.detune;
+    const v = o.vol ?? .25, a = o.att ?? .005;
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(v, t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    let node = g;
+    if (o.filter) { const fl = c.createBiquadFilter(); fl.type = o.filter; fl.frequency.value = o.ff || 1000; fl.Q.value = o.q || 1; g.connect(fl); node = fl; }
+    os.connect(g); node.connect(o.dest || this.fx); if (o.wet && this.echo) node.connect(this.echo);
+    os.start(t0); os.stop(t0 + dur + .05);
+  },
+  noise(dur, o = {}) {
+    if (!this.ctx) return; const c = this.ctx, t0 = c.currentTime + (o.at || 0);
+    const len = Math.ceil(c.sampleRate * dur), buf = c.createBuffer(1, len, c.sampleRate), ch = buf.getChannelData(0); for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+    const s = c.createBufferSource(); s.buffer = buf; const fl = c.createBiquadFilter(); fl.type = o.filter || 'lowpass'; fl.frequency.value = o.ff || 800; fl.Q.value = o.q || .7;
+    if (o.fto) fl.frequency.exponentialRampToValueAtTime(o.fto, t0 + dur);
+    const g = c.createGain(), v = o.vol ?? .2; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(v, t0 + (o.att ?? .01)); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    s.connect(fl); fl.connect(g); g.connect(o.dest || this.fx); if (o.wet && this.echo) g.connect(this.echo); s.start(t0); s.stop(t0 + dur + .05);
+  },
+  /* 사악한 웃음: 성대(톱니파) + 'ㅏ' 모음 포먼트 + 'ㅎ' 숨소리, 점점 낮아지는 "하하하하… 하아아" */
+  laugh(at = 0, vol = .55, pitch = 1) {
+    if (!this.ctx) return; const c = this.ctx, t0 = c.currentTime + at;
+    const out = c.createGain(); out.gain.value = vol; out.connect(this.fx); if (this.echo) out.connect(this.echo);
+    const f1 = c.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 760; f1.Q.value = 5;
+    const f2 = c.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 1180; f2.Q.value = 7;
+    const f3 = c.createBiquadFilter(); f3.type = 'lowpass'; f3.frequency.value = 520;
+    [f1, f2, f3].forEach(f => f.connect(out));
+    const syl = (t, dur, fA, fB, amp) => {
+      [1, .5].forEach((mul, k) => {
+        const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(fA * mul, t); o.frequency.exponentialRampToValueAtTime(fB * mul, t + dur);
+        const vib = c.createOscillator(), vg = c.createGain(); vib.frequency.value = 7; vg.gain.value = 6 * mul; vib.connect(vg); vg.connect(o.frequency);
+        const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(amp * (k ? .7 : 1), t + .02); g.gain.setValueAtTime(amp * (k ? .7 : 1), t + dur * .55); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g); g.connect(f1); g.connect(f2); g.connect(f3); o.start(t); o.stop(t + dur + .05); vib.start(t); vib.stop(t + dur + .05);
+      });
+      this.noise(.05, { at: t - c.currentTime, filter: 'bandpass', ff: 1600, q: 1.2, vol: amp * .5, dest: out });
+    };
+    const base = 175 * pitch;
+    for (let i = 0; i < 7; i++) syl(t0 + i * .165, .13, base * (1 - i * .045), base * (1 - i * .045) * .9, .5);
+    syl(t0 + 7 * .165 + .05, .75, base * .78, base * .45, .55);
+  },
+  boom(at = 0, vol = .6) { this.tone(70, 1.6, { at, to: 32, type: 'sine', vol, att: .01 }); this.noise(1.2, { at, ff: 300, fto: 60, vol: vol * .5 }); },
+  click() { this.tone(900, .05, { type: 'square', vol: .05 }); },
+  correct() { [659, 831, 988, 1319].forEach((f, i) => this.tone(f, .35, { at: i * .07, type: 'triangle', vol: .16, wet: 1 })); },
+  wrong() { this.tone(160, .45, { type: 'sawtooth', to: 70, vol: .18, filter: 'lowpass', ff: 900 }); this.noise(.25, { ff: 400, vol: .2 }); },
+  jail() {
+    [220, 347, 512, 799, 1103].forEach((f, i) => this.tone(f, 1.6, { type: 'sine', vol: .12 / (1 + i * .3), att: .002, wet: 1 }));
+    this.noise(.4, { ff: 2500, fto: 300, vol: .3 }); this.boom(0, .5);
+    for (let i = 0; i < 5; i++) this.noise(.08, { at: .35 + i * .09, filter: 'highpass', ff: 3000, vol: .07 }); // 쇠사슬
+    this.laugh(.55, .5, .95);
+  },
+  clear() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 1.4, { at: i * .09, type: 'sine', vol: .14, wet: 1 })); this.tone(2093, 1.2, { at: .35, type: 'triangle', vol: .05, wet: 1 }); },
+  unlock() { this.noise(.05, { filter: 'highpass', ff: 2000, vol: .25 }); this.noise(.05, { at: .12, filter: 'highpass', ff: 2600, vol: .25 }); this.tone(200, .6, { at: .2, to: 800, type: 'sawtooth', vol: .08, filter: 'lowpass', ff: 1500 }); },
+  pluck() { this.tone(523, .25, { type: 'triangle', vol: .18 }); this.tone(1046, .15, { type: 'sine', vol: .06 }); },
+  coin() { this.tone(988, .09, { type: 'square', vol: .07 }); this.tone(1319, .35, { at: .08, type: 'square', vol: .07 }); },
+  tick() { this.tone(1500, .04, { type: 'square', vol: .05 }); },
+  escapeSting() { [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, 1.1, { at: i * .12, type: 'triangle', vol: .15, wet: 1 })); this.tone(262, 2, { at: .6, type: 'sine', vol: .12 }); },
+  /* 배경음악: 낮은 드론 + 오르골 왈츠(라단조) + 바람 */
+  startBgm() {
+    if (!this.ctx || this.bgmOn) return; this.bgmOn = true; const c = this.ctx;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260; lp.Q.value = 6; lp.connect(this.music);
+    const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = .07; lg.gain.value = 140; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+    const dg = c.createGain(); dg.gain.value = .0001; dg.gain.exponentialRampToValueAtTime(.5, c.currentTime + 4); dg.connect(lp);
+    [[55, 0], [55.4, 0], [82.4, -5], [41.2, 0]].forEach(([f, dt]) => { const o = c.createOscillator(); o.type = f < 50 ? 'sine' : 'sawtooth'; o.frequency.value = f; o.detune.value = dt; o.connect(dg); o.start(); this.nodes.push(o); });
+    this.nodes.push(lfo); this.droneGain = dg;
+    const A = [440, 523.3, 659.3, 622.3, 659.3, 523.3, 440, 493.9, 523.3, 493.9, 415.3, 329.6, 349.2, 440, 523.3, 493.9, 466.2, 440, 0, 0, 659.3, 698.5, 659.3, 622.3, 587.3, 523.3, 493.9, 415.3, 440, 0, 0, 0];
+    let i = 0;
+    const step = () => { if (!this.bgmOn) return; const f = A[i % A.length]; if (f) { this.tone(f, 1.1, { type: 'triangle', vol: .07, dest: this.music, wet: 1 }); this.tone(f * 2, .6, { type: 'sine', vol: .025, dest: this.music }); } if (i % 6 === 0) this.tone(110, 1.4, { type: 'sine', vol: .09, dest: this.music }); i++; };
+    this.bgmTimers.push(setInterval(step, 380));
+    this.bgmTimers.push(setInterval(() => { if (this.bgmOn) this.noise(5, { ff: 500, fto: 1400, vol: .05, att: 2.2, dest: this.music }); }, 9000));
+    this.bgmTimers.push(setInterval(() => { if (this.bgmOn && S.screen === 'game' && Math.random() < .5) this.laugh(0, .16, .85); }, 75000));
+  },
+  stopBgm() {
+    this.bgmOn = false; this.bgmTimers.forEach(clearInterval); this.bgmTimers = [];
+    if (this.droneGain && this.ctx) { try { this.droneGain.gain.setTargetAtTime(.0001, this.ctx.currentTime, .6); } catch (e) { } }
+    const ns = this.nodes; this.nodes = []; setTimeout(() => ns.forEach(n => { try { n.stop(); } catch (e) { } }), 3000);
+  }
+};
+try { const v = store.get('algomall:snd'); if (v === 0) SND.on = false; } catch (e) { }
+addEventListener('pointerdown', () => SND.init(), { capture: true });
+addEventListener('keydown', () => SND.init(), { capture: true });
 
 /* ================= 캔버스 ================= */
 const cv = $('#game'), ctx = cv.getContext('2d');
@@ -1231,13 +1337,13 @@ function gameTick(now) {
     if (c && !S.known.has(a.id)) {
       S.known.add(a.id);
       if (!S.clr.has(a.id)) { S.clr.add(a.id); pushMe(true); save(); }
-      if (S.litAt.__init) { S.litAt[a.id] = performance.now(); if (a.id !== 'fin') { toast(`${a.n}번 ${a.name} 클리어! 코드 조각 ‘${a.L}’ 획득`, 'gold'); burst(VW / 2, VH / 2, 90); } }
+      if (S.litAt.__init) { S.litAt[a.id] = performance.now(); if (a.id !== 'fin') { toast(`${a.n}번 ${a.name} 클리어! 코드 조각 ‘${a.L}’ 획득`, 'gold'); burst(VW / 2, VH / 2, 90); SND.clear(); } }
       renderList(); renderHud();
       if (a.id === 'fin') escape();
     }
   }
   if (!S.litAt.__init) S.litAt.__init = 1;
-  if (doorOpen() && !S.known.has('door')) { S.known.add('door'); if (!S.clr.has('door')) { S.clr.add('door'); pushMe(true); save(); } if (S.litAt.__ready) toast('계산대 문이 열렸어요! 마지막 미션으로!', 'gold'); }
+  if (doorOpen() && !S.known.has('door')) { S.known.add('door'); if (!S.clr.has('door')) { S.clr.add('door'); pushMe(true); save(); } if (S.litAt.__ready) { toast('계산대 문이 열렸어요! 마지막 미션으로!', 'gold'); SND.unlock(); SND.laugh(.6, .4, .8); } }
   S.litAt.__ready = 1;
   // 미션 대기 화면 갱신
   if (!S.sol.has('r6') && (S.w6.size || mem.some(m => m.w6 && m.w6.size)) && relayRound(mem) >= RELAY.length) { S.sol.add('r6'); pushMe(true); save(); if (!S.online) bots.forEach(b => b.sol.add('r6')); if (S.mission && S.mission.room === 'r6' && S.mission.phase === 'relay') { S.mission.phase = 'wait'; renderMission(); } }
@@ -1251,7 +1357,7 @@ function gameTick(now) {
 function escape() {
   if (S.ended) return; S.ended = true;
   const mem = members(); if (!S.done) { S.done = Math.round(teamElapsed(mem)); pushMe(true); save(); }
-  closeMission(); burst(VW / 2, VH / 3, 200);
+  closeMission(); burst(VW / 2, VH / 3, 200); SND.stopBgm(); SND.escapeSting();
   setTimeout(() => showEnd(), 900);
 }
 function showEnd() {
@@ -1403,7 +1509,7 @@ function renderMission() {
 }
 function check(ok, msg) {
   const M = S.mission;
-  if (ok) { M.fb = { ok: true }; burst(VW / 2, VH * .35, 30); }
+  if (ok) { M.fb = { ok: true }; burst(VW / 2, VH * .35, 30); SND.correct(); }
   else { M.fb = { ok: false, msg }; renderMission(); openJail(() => { if (S.mission === M) { M.fb = null; renderMission(); } }); return; }
   renderMission();
 }
@@ -1495,7 +1601,7 @@ function renderReading() {
   $('#mFoot').innerHTML = `<span class="pill">우리 모둠 보너스 -${teamBonus(members())}초</span>`;
   $('#mBody').querySelectorAll('.opt').forEach(b => b.onclick = () => {
     if (M.picked != null || S.rd.has(r.id)) return; M.picked = r.opts[+b.dataset.i]; S.rd.add(r.id);
-    if (M.picked === r.a) { S.bn = (S.bn || 0) + 1; burst(VW / 2, VH * .4, 40); toast(`탈출 기록 -${BONUS_SEC}초!`, 'gold'); }
+    if (M.picked === r.a) { SND.coin(); S.bn = (S.bn || 0) + 1; burst(VW / 2, VH * .4, 40); toast(`탈출 기록 -${BONUS_SEC}초!`, 'gold'); }
     pushMe(true); save(); renderReading(); renderHud();
   });
   const c = $('#rdClose'); if (c) c.onclick = closeMission;
@@ -1551,6 +1657,8 @@ function r2Tick(now) {
   r2Bar(g, mem, now);
 }
 function r2Bar(g, mem, now) {
+  if (g && g.ph === 'q') { const sec = Math.ceil((R2L.myEnd - now) / 1000); if (sec <= 3 && sec > 0 && R2L.lastTick !== sec) { R2L.lastTick = sec; SND.tick(); } }
+  if (g && g.ph === 'r' && R2L.resSnd !== g.id) { R2L.resSnd = g.id; if (g.wr) SND.wrong(); else SND.correct(); }
   const bar = $('#r2bar');
   const show = g && (g.ph === 'q' || g.ph === 'r') && (S.area === 'r2' || mem.some(m => m.area === 'r2'));
   bar.hidden = !show; if (!show) return;
@@ -1614,7 +1722,7 @@ function renderRelay() {
   foot.innerHTML = `${memStatusHtml('r6')}<button class="hbtn" id="mHint" type="button" ${S.hints <= 0 || M.hinted['r' + st.R] ? 'disabled' : ''}>💡 힌트 (${S.hints}번 남음 · +1분)</button>`;
   body.querySelectorAll('.tile').forEach(b => b.onclick = () => {
     const s2 = relayState(); if (s2.done || s2.turn !== S.sid || S.jl) return;
-    if (b.dataset.c === s2.q.a[s2.next]) { S.w6.add(`${s2.R}.${s2.next}`); pushMe(true); save(); burst(VW / 2, VH * .4, 24); renderRelay(); }
+    if (b.dataset.c === s2.q.a[s2.next]) { S.w6.add(`${s2.R}.${s2.next}`); pushMe(true); save(); burst(VW / 2, VH * .4, 24); SND.pluck(); renderRelay(); }
     else { toast(`‘${b.dataset.c}’는 아니야! 알고의 감옥으로…`, 'bad'); openJail(() => renderRelay()); renderRelay(); }
   });
   $('#mHint').onclick = () => { if (S.hints <= 0 || M.hinted['r' + st.R]) return; S.hints--; S.pen += 60; M.hinted['r' + st.R] = true; pushMe(true); save(); renderRelay(); renderHud(); };
@@ -1638,7 +1746,7 @@ const JAIL_GAMES = [
 const TAUNTS = ['키키킥… 틀렸지? 여기서 나가려면 놀이에서 이겨야 해.', '현명한 소비자라더니… 감옥이나 즐기라고.', '오답의 대가다. 알고의 놀이에서 살아남아 봐.'];
 function openJail(onDone) {
   JAIL.active = true; JAIL.onDone = onDone; JAIL.tries = 0; S.jl = 1; Net.push({ jl: 1 });
-  $('#jail').hidden = false; for (const k in keys) keys[k] = false;
+  $('#jail').hidden = false; for (const k in keys) keys[k] = false; SND.jail();
   $('#jSub').textContent = pick(TAUNTS);
   jailIntro();
 }
@@ -1657,12 +1765,12 @@ function jailIntro() {
 function jailEnd(win, why) {
   if (JAIL.stop) { try { JAIL.stop(); } catch (e) { } JAIL.stop = null; }
   JAIL.tries++;
-  if (win) {
+  if (win) { SND.escapeSting();
     $('#jStage').innerHTML = `<div class="jres win">탈옥 성공!</div><p class="jmsg">${why || ''} 문제로 돌아가 다시 풀어 봐.</p>`;
     $('#jFoot').innerHTML = '<button class="btn alt" id="jOut" type="button">감옥 나가기</button>';
     burst(VW / 2, VH / 2, 70);
     $('#jOut').onclick = () => { JAIL.active = false; S.jl = 0; Net.push({ jl: 0 }); $('#jail').hidden = true; const f = JAIL.onDone; JAIL.onDone = null; f && f(); };
-  } else {
+  } else { SND.wrong(); SND.laugh(.3, .45, 1.1);
     $('#jStage').innerHTML = `<div class="jres lose">실패…</div><p class="jmsg">${why || ''} 알고: “키키킥, 아직 못 나가.”</p>`;
     $('#jFoot').innerHTML = '<button class="btn" id="jRe" type="button">다른 놀이로 다시 도전</button>';
     $('#jRe').onclick = jailIntro;
@@ -1765,6 +1873,8 @@ function show(name) {
 }
 
 /* ---------- 분위기 ---------- */
+$('#sndBtn').onclick = e => { e.stopPropagation(); SND.init(); SND.setOn(!SND.on); if (SND.on) SND.click(); };
+SND.setOn(SND.on);
 try { const z = store.get('algomall:tsize'); if (z) $('#tSize').value = z; } catch (e) { }
 $('#tSize').addEventListener('input', () => { store.set('algomall:tsize', $('#tSize').value); renderTeacher(); });
 try { const c = store.get('algomall:code'); if (c) $('#inCode').value = c; } catch (e) { }
@@ -1798,7 +1908,7 @@ $('#loginForm').onsubmit = e => {
   if (Net.mode === 'firebase' && !$('#inCode').value.trim()) { $('#loginErr').textContent = '선생님이 알려 준 게임방 코드를 입력해요.'; return; }
   if (Net.mode === 'firebase') { const code = safeCode($('#inCode').value); store.set('algomall:code', code); Net.join(code); }
   const saved = store.get(keyOf());
-  if (saved && saved.team === S.team) { S.av = safeAv(saved.av); S.sol = new Set(saved.sol || []); S.w6 = new Set(saved.w6 || []); S.rd = new Set(saved.rd || []); S.bn = saved.bn || 0; S.jt = saved.jt || 0; S.go = saved.go || 0; S.r2G = saved.r2G || null; S.r2d = saved.r2d || 0; S.clr = new Set(saved.clr || []); S.st = saved.st || 0; S.pen = saved.pen || 0; S.hints = saved.hints ?? 3; S.done = saved.done || 0; S.pl = saved.pl || ''; if (saved.x) { S.x = saved.x; S.y = saved.y; } S.seen = saved.seen; }
+  if (saved && saved.team === S.team) { S.av = safeAv(saved.av); S.sol = new Set(saved.sol || []); S.w6 = new Set(saved.w6 || []); S.rd = new Set(saved.rd || []); S.bn = saved.bn || 0; S.jt = saved.jt || 0; S.go = saved.go || 0; S.sd = saved.sd || (saved.seen && saved.sol && saved.sol.length ? 1 : 0); S.r2G = saved.r2G || null; S.r2d = saved.r2d || 0; S.clr = new Set(saved.clr || []); S.st = saved.st || 0; S.pen = saved.pen || 0; S.hints = saved.hints ?? 3; S.done = saved.done || 0; S.pl = saved.pl || ''; if (saved.x) { S.x = saved.x; S.y = saved.y; } S.seen = saved.seen; }
   else if (saved && saved.av) S.av = safeAv(saved.av);
   buildAvatarUI(); show('avatar');
 };
@@ -1826,22 +1936,24 @@ $('#btnEnter').onclick = () => {
   if (!S.online) makeBots();
   save(); pushMe(true);
   updConn();
-  if (S.seen && S.sol.size) { enterOrLobby(); } else { startStory(); }
+  enterOrLobby();
 };
 /* ---------- 모둠 대기실: 먼저 들어온 사람이 방장, 방장이 시작하면 모두 함께 출발 ---------- */
 const teamNow = () => [meObj(), ...teammates()];
 const hostOf = mem => mem.slice().sort((a, b) => ((a.jt || 9e15) - (b.jt || 9e15)) || String(a.sid).localeCompare(String(b.sid)))[0];
 const teamGo = mem => Math.max(0, ...mem.map(m => +m.go || 0));
+function beginGame() { if (S.sd) enterGame(); else startStory(); }
 function enterOrLobby() {
-  if (!S.online || S.st) { S.lob = 0; enterGame(); return; }
+  if (!S.online || S.st) { S.lob = 0; beginGame(); return; }
   const g = teamGo(teamNow()); if (g) { startTeam(g); return; }
-  S.lob = 1; pushMe(true); show('lobby'); renderLobby();
+  S.lob = 1; pushMe(true); show('lobby'); renderLobby.sig = ''; renderLobby();
 }
-function startTeam(go) { S.go = go; S.st = go; S.lob = 0; save(); pushMe(true); enterGame(); toast('탈출 시작! 불 꺼진 방을 찾아 모둠원과 함께 움직여요.', 'gold'); }
+function startTeam(go) { S.go = go; S.st = go; S.lob = 0; save(); pushMe(true); beginGame(); }
 function renderLobby() {
   if (S.screen !== 'lobby') return;
   const mem = teamNow(); const g = teamGo(mem); if (g) { startTeam(g); return; }
   const host = hostOf(mem), iAmHost = host.sid === S.sid;
+  const sig = mem.map(m => m.sid + m.nick + JSON.stringify(m.av)).sort().join('|') + host.sid; if (sig === renderLobby.sig) return; renderLobby.sig = sig;
   $('#lobCode').textContent = Net.mode === 'firebase' ? `게임방 ${Net.code}` : '알고몰 입구';
   $('#lobTitle').textContent = `${S.team}모둠 대기실`;
   $('#lobSub').innerHTML = `지금 <b>${mem.length}명</b> 접속했어요. 모둠원이 모두 들어오면 방장이 탈출을 시작해요.`;
@@ -1851,7 +1963,7 @@ function renderLobby() {
 }
 $('#btnGo').onclick = () => { const mem = teamNow(); if (hostOf(mem).sid !== S.sid) { renderLobby(); return; } startTeam(Date.now()); };
 setInterval(() => { if (S.screen === 'lobby') renderLobby(); }, 700);
-function enterGame() { S.known = new Set(); S.litAt = {}; members(); show('game'); updConn(); if (!S.online) toast(Net.usable() ? '연습 모드: 연습봇 2명이 모둠원이에요.' : '실시간 연결이 안 돼서 연습 모드로 시작해요. 연습봇 2명이 모둠원이에요.'); }
+function enterGame() { S.known = new Set(); S.litAt = {}; members(); show('game'); SND.init(); SND.startBgm(); updConn(); if (!S.online) toast(Net.usable() ? '연습 모드: 연습봇 2명이 모둠원이에요.' : '실시간 연결이 안 돼서 연습 모드로 시작해요. 연습봇 2명이 모둠원이에요.'); }
 
 /* ---------- 이야기 ---------- */
 const STORY = [
@@ -1861,15 +1973,15 @@ const STORY = [
   ['알고', '나가고 싶어? 그럼 증명해 봐. 너희 모둠 모두가 ‘현명한 소비자’라는 걸. 실패하면… 영원히 여기서 쇼핑하게 될 거야.']
 ];
 let storyI = 0, typer = null;
-function startStory() { storyI = 0; $('#rules').hidden = true; show('story'); typeLine(); }
+function startStory() { storyI = 0; $('#rules').hidden = true; show('story'); typeLine(); SND.init(); SND.boom(0, .55); SND.laugh(.5, .6, .9); }
 function typeLine() {
-  const [who, line] = STORY[storyI]; const el = $('#storyText'); let n = 0; clearInterval(typer);
+  const [who, line] = STORY[storyI]; const el = $('#storyText'); if (storyI > 0) { if (line.includes('키키킥')) SND.laugh(.3, .5, 1.05); else SND.noise(.8, { ff: 400, fto: 1200, vol: .08, att: .3 }); } let n = 0; clearInterval(typer);
   const draw = () => { el.innerHTML = (who ? `<span class="spk">${who}</span>` : '') + esc(line.slice(0, n)); };
   typer = setInterval(() => { n += 2; draw(); if (n >= line.length) clearInterval(typer); }, 28); draw();
   $('#btnStory').textContent = '다음';
 }
 $('#btnStory').onclick = () => {
-  if (!$('#rules').hidden) { enterOrLobby(); return; }
+  if (!$('#rules').hidden) { S.sd = 1; save(); enterGame(); return; }
   storyI++;
   if (storyI < STORY.length) typeLine();
   else { clearInterval(typer); $('#storyText').innerHTML = '<span class="spk">탈출 규칙</span>불 꺼진 방 6개를 돌며 코드 조각을 모아 계산대 비상구를 열어라. 제한 시간은 22분…'; $('#rules').hidden = false; $('#btnStory').textContent = '탈출 시작!'; }
