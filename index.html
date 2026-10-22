@@ -345,9 +345,24 @@ h1 span{display:inline-block}
 .toast.bad{background:#2a0607;color:#ffd5d5;border-color:var(--pink)}
 .mem span{border-radius:99px;background:#0e0d0c}
 @media (max-width:480px){h1{font-size:72px}.h-w{font-size:27px}}
+/* ---------- 대기실 + 교사 현황 ---------- */
+.lobby{display:grid;gap:8px;margin:4px 0 4px}
+.lrow{display:flex;align-items:center;gap:10px;background:#0f0e0d;border:1.5px solid #57524d;border-radius:14px 5px 14px 5px;padding:8px 12px;animation:pop .3s}
+.lrow img{width:40px;height:40px;border-radius:50%}
+.lrow span{flex:1;min-width:0;display:grid}.lrow small{color:var(--mute);font-size:12px}
+.lrow em{font-style:normal;font-size:13px;color:var(--ok);font-weight:700}
+.lrow.host{border-color:var(--gold)}.lrow.host em{color:var(--gold)}
+.tcard.dim{opacity:.5}
+.tgrid{align-items:start}
+.tcard h3 .st{font-family:var(--body);font-size:12px;padding:2px 8px;border-radius:99px;margin-left:6px;font-weight:700}
+.st.wait{background:#3a3633;color:var(--gold)}.st.run{background:rgba(238,123,34,.2);color:var(--cyan)}.st.esc{background:rgba(138,210,154,.2);color:var(--ok)}
+.chip0{font-family:var(--body)!important;font-size:12px!important;color:var(--mute)!important}
+.cnt{font-size:13px;font-weight:700;color:var(--gold);margin:2px 0 6px}.cnt.full{color:var(--ok)}
+.tlist{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:3px;font-size:13px}
+.tlist small{color:var(--mute)}.tlist em{font-style:normal;color:var(--mute);float:right}
 /* ---------- 읽기자료 ---------- */
 .paper{background:#e6dcc6;color:#2a211a;border-radius:4px;padding:14px 16px;margin-bottom:14px;line-height:1.75;font-size:15px;box-shadow:0 0 0 3px #000,4px 5px 0 3px #000;transform:rotate(-.5deg);background-image:radial-gradient(circle at 90% 85%,rgba(120,20,20,.2) 0 5%,transparent 6%),radial-gradient(circle at 8% 12%,rgba(90,60,30,.16) 0 8%,transparent 9%)}
-.paper b{color:#8a1a1a}
+
 .ptag{font-family:var(--display);font-weight:700;font-size:15px;color:#7a6a4f;border-bottom:1px dashed #a89878;margin-bottom:6px;padding-bottom:3px}
 /* ---------- 정보 폭포 이동 게임 ---------- */
 .r2bar{pointer-events:none!important;position:absolute;left:50%;transform:translateX(-50%);top:calc(100px + env(safe-area-inset-top,0px));width:min(560px,calc(100vw - 24px));padding:12px 16px;text-align:center;border-color:#cfc8bd!important;background:rgba(14,13,12,.95)!important}
@@ -430,7 +445,7 @@ h1 span{display:inline-block}
     <label class="f" for="inNick">닉네임 (8자 이내)</label>
     <input class="inp" id="inNick" maxlength="8" placeholder="예) 똑똑소비왕">
     <div id="codeRow" hidden><label class="f" for="inCode">게임방 코드 (선생님이 알려 준 코드)</label>
-    <input class="inp" id="inCode" maxlength="20" placeholder="예) 2-3반" value="1반"></div>
+    <input class="inp" id="inCode" maxlength="20" placeholder="" value="" inputmode="numeric"></div>
     <label class="f">우리 모둠</label>
     <div class="chips" id="teamChips"></div>
     <label class="check"><input type="checkbox" id="inPractice"> 혼자 연습하기 (연습봇 2명이 모둠원이 돼요)</label>
@@ -472,12 +487,24 @@ h1 span{display:inline-block}
   </div>
 </section>
 
+<!-- 모둠 대기실 -->
+<section id="scrLobby" class="screen" hidden>
+  <div class="card" style="max-width:520px">
+    <div class="sign"><span id="lobCode">게임방</span></div>
+    <h1 id="lobTitle" style="font-size:58px">모둠 대기실</h1>
+    <p class="sub" id="lobSub"></p>
+    <div class="lobby" id="lobList"></div>
+    <button class="btn" id="btnGo" type="button" hidden>모두 모였어요! 탈출 시작</button>
+    <p class="sub" id="lobWait" style="margin:14px 0 0"></p>
+  </div>
+</section>
+
 <!-- 교사 -->
 <section id="scrTeacher" class="screen teacher" hidden>
   <div class="tbox">
     <header>
       <div><div class="sign" style="justify-content:flex-start"><span>알고몰 관리실</span></div><h1>선생님 화면</h1></div>
-      <div class="row"><span class="pill" id="tConn"><i></i><span>연결 확인 중</span></span><button class="btn ghost" id="btnTBack" style="width:auto;margin:0" type="button">처음으로</button></div>
+      <div class="row" style="flex-wrap:wrap"><span class="pill" id="tInfo"></span><label class="pill" for="tSize">모둠당 인원 <input id="tSize" type="number" min="1" max="8" value="4" style="width:42px;background:transparent;border:0;color:var(--ink);font:inherit;text-align:center"></label><span class="pill" id="tConn"><i></i><span>연결 확인 중</span></span><button class="btn ghost" id="btnTBack" style="width:auto;margin:0" type="button">처음으로</button></div>
     </header>
     <div id="tRank"></div>
     <div class="tgrid" id="tGrid"></div>
@@ -793,7 +820,7 @@ const S = {
   mission: null, litAt: {}, known: new Set(), em: null, emAt: 0, ended: false, overShown: false
 };
 const keyOf = () => 'algomall:' + S.sid;
-function save() { store.set(keyOf(), { nick: S.nick, team: S.team, av: S.av, rd: [...S.rd], bn: S.bn || 0, r2G: S.r2G || null, r2d: S.r2d || 0, w6: [...S.w6], sol: [...S.sol], clr: [...S.clr], st: S.st, pen: S.pen, hints: S.hints, done: S.done, pl: S.pl, x: S.x, y: S.y, seen: true }); }
+function save() { store.set(keyOf(), { nick: S.nick, team: S.team, av: S.av, jt: S.jt || 0, go: S.go || 0, rd: [...S.rd], bn: S.bn || 0, r2G: S.r2G || null, r2d: S.r2d || 0, w6: [...S.w6], sol: [...S.sol], clr: [...S.clr], st: S.st, pen: S.pen, hints: S.hints, done: S.done, pl: S.pl, x: S.x, y: S.y, seen: true }); }
 
 /* ================= 실시간 연결(room) ================= */
 const safeCode = c => (String(c || '').trim().replace(/[.#$\[\]\/\s]/g, '').slice(0, 20) || '1반');
@@ -862,11 +889,11 @@ function normPeer(p) {
   if (!rc) { rc = { rx: x, ry: y, em: null, emAt: 0 }; remoteCache.set(pr.sid, rc); }
   const em = pr.em && typeof pr.em.e === 'string' ? pr.em : null;
   if (em && (!rc.em || rc.em.t !== em.t)) { rc.em = em; rc.emAt = performance.now(); }
-  return { sid: pr.sid, nick: String(pr.nick || '친구').slice(0, 8), team: +pr.team || 0, role: pr.role, av: safeAv(pr.av), x, y, fx: +pr.fx || 0, fy: +pr.fy || 1, mv: !!pr.mv, area: String(pr.area || 'hall'), sol, clr, st: +pr.st || 0, pen: +pr.pen || 0, done: +pr.done || 0, pl: String(pr.pl || '').slice(0, 60), jl: !!pr.jl, r2g: pr.r2g && typeof pr.r2g === 'object' ? pr.r2g : null, r2a: String(pr.r2a || ''), r2go: !!pr.r2go, bn: +pr.bn || 0, w6: new Set(String(pr.w6 || '').split(',').filter(Boolean)), rc, seed: (pr.sid || '').length * 3.7 };
+  return { sid: pr.sid, nick: String(pr.nick || '친구').slice(0, 8), team: +pr.team || 0, role: pr.role, av: safeAv(pr.av), x, y, fx: +pr.fx || 0, fy: +pr.fy || 1, mv: !!pr.mv, area: String(pr.area || 'hall'), sol, clr, st: +pr.st || 0, pen: +pr.pen || 0, done: +pr.done || 0, pl: String(pr.pl || '').slice(0, 60), jl: !!pr.jl, r2g: pr.r2g && typeof pr.r2g === 'object' ? pr.r2g : null, r2a: String(pr.r2a || ''), r2go: !!pr.r2go, bn: +pr.bn || 0, jt: +pr.jt || 0, go: +pr.go || 0, lob: !!pr.lob, w6: new Set(String(pr.w6 || '').split(',').filter(Boolean)), rc, seed: (pr.sid || '').length * 3.7 };
 }
-function meObj() { return { sid: S.sid, nick: S.nick, team: S.team, av: S.av, x: S.x, y: S.y, fx: S.fx, fy: S.fy, mv: S.moving, area: S.area, sol: S.sol, clr: S.clr, st: S.st, pen: S.pen, done: S.done, jl: !!S.jl, w6: S.w6, r2g: S.r2G || null, r2a: S.r2a || '', r2go: !!S.r2go, bn: S.bn || 0, isMe: true, seed: 1 }; }
+function meObj() { return { sid: S.sid, nick: S.nick, team: S.team, av: S.av, x: S.x, y: S.y, fx: S.fx, fy: S.fy, mv: S.moving, area: S.area, sol: S.sol, clr: S.clr, st: S.st, pen: S.pen, done: S.done, jl: !!S.jl, w6: S.w6, r2g: S.r2G || null, r2a: S.r2a || '', r2go: !!S.r2go, bn: S.bn || 0, jt: S.jt || 0, go: S.go || 0, lob: !!S.lob, isMe: true, seed: 1 }; }
 let teamCache = [];
-function onPeers() { if (S.screen === 'teacher') renderTeacher(); }
+function onPeers() { if (S.screen === 'teacher') renderTeacher(); if (S.screen === 'lobby') renderLobby(); }
 function teammates() {
   if (!S.online) return bots;
   return Net.others().map(normPeer).filter(m => m.role === 'student' && m.team === S.team && m.sid !== S.sid);
@@ -878,7 +905,7 @@ function teamElapsed(mem) { const st = Math.min(...mem.map(m => m.st || Infinity
 
 function pushMe(full) {
   const p = { x: Math.round(S.x * 100) / 100, y: Math.round(S.y * 100) / 100, fx: Math.round(S.fx * 10) / 10, fy: Math.round(S.fy * 10) / 10, mv: S.moving, area: S.area };
-  if (full) Object.assign(p, { role: S.role, sid: S.sid, nick: S.nick, team: S.team, av: S.av, sol: [...S.sol].join(','), clr: [...S.clr].join(','), st: S.st, pen: S.pen, done: S.done, pl: S.pl, em: S.em, jl: S.jl ? 1 : 0, w6: [...S.w6].join(','), r2g: S.r2G || null, r2a: S.r2a || '', r2go: S.r2go ? 1 : 0, bn: S.bn || 0 });
+  if (full) Object.assign(p, { role: S.role, sid: S.sid, nick: S.nick, team: S.team, av: S.av, sol: [...S.sol].join(','), clr: [...S.clr].join(','), st: S.st, pen: S.pen, done: S.done, pl: S.pl, em: S.em, jl: S.jl ? 1 : 0, w6: [...S.w6].join(','), r2g: S.r2G || null, r2a: S.r2a || '', r2go: S.r2go ? 1 : 0, bn: S.bn || 0, jt: S.jt || 0, go: S.go || 0, lob: S.lob ? 1 : 0 });
   Net.push(p);
 }
 
@@ -1402,15 +1429,15 @@ function openDoorPanel() {
 /* ================= 복도 읽기자료 (보너스: 정답 1개당 탈출 기록 -3초) ================= */
 const BONUS_SEC = 3;
 const READINGS = [
-  { id: 'k1', x: 18, y: 12, icon: '📦', title: '온라인 쇼핑 7일의 약속', text: '온라인으로 산 물건은 받은 날부터 <b>7일 이내</b>라면 단순히 마음이 바뀐 경우에도 청약 철회(구매 취소)를 요청할 수 있어요. 다만 포장을 뜯거나 사용해서 상품 가치가 크게 떨어진 경우 등은 제한될 수 있어요.', q: '온라인으로 산 운동화가 마음에 들지 않아요. 물건을 받은 날부터 며칠 이내에 청약 철회를 요청할 수 있을까?', opts: ['3일', '7일', '14일', '30일'], a: '7일', ex: '전자상거래로 산 물건은 받은 날부터 7일 이내에 청약 철회를 요청할 수 있어요.' },
-  { id: 'k2', x: 27, y: 12, icon: '☎️', title: '도움이 필요하면 1372', text: '산 물건이 불량인데 환불을 거부당했다면 혼자 고민하지 말아요. <b>1372 소비자상담센터</b>에 전화하거나 누리집에서 상담받을 수 있어요. 상담으로 해결되지 않으면 한국소비자원의 피해 구제 절차로 이어질 수 있어요.', q: '소비자 피해를 상담할 수 있는 소비자상담센터 전화번호는?', opts: ['112', '119', '1372', '1388'], a: '1372', ex: '1372 소비자상담센터! 112는 경찰, 119는 소방, 1388은 청소년 상담 전화예요.' },
-  { id: 'k3', x: 14, y: 19, icon: '🕳️', title: '눈속임 설계, 다크 패턴', text: '무료 체험이 끝나면 알림 없이 자동 결제되게 하거나, 해지 버튼을 꼭꼭 숨겨 두거나, "남은 수량 1개!"처럼 괜히 서두르게 만드는 화면 설계를 <b>다크 패턴</b>이라고 해요. 결제 전에 자동 결제 여부와 해지 방법을 꼭 확인해요.', q: '다크 패턴의 예로 알맞은 것은?', opts: ['무료 체험이 끝나면 알림 없이 자동 결제된다', '가격과 성분을 정확히 표시한다', '반품 방법을 첫 화면에 안내한다', '결제 전에 최종 금액을 보여 준다'], a: '무료 체험이 끝나면 알림 없이 자동 결제된다', ex: '소비자를 속여 원하지 않는 결제를 하게 만드는 설계가 다크 패턴이에요.' },
-  { id: 'k4', x: 31, y: 19, icon: '🏷️', title: '할인율의 함정', text: '"정가 99,000원 → 49,000원(50% 할인)!" 그런데 그 물건이 원래 어디서나 49,000원에 팔리고 있었다면? 처음 본 높은 가격이 기준이 되어 싸다고 느끼게 되는 것을 <b>기준점 효과</b>라고 해요. 할인율보다 실제 가격을 비교해요.', q: '할인 광고를 보았을 때 가장 현명한 행동은?', opts: ['할인율이 크면 바로 산다', '다른 곳의 실제 판매 가격과 비교해 본다', '정가가 비쌀수록 좋은 물건이라고 믿는다', '마감 시간이 끝나기 전에 서둘러 산다'], a: '다른 곳의 실제 판매 가격과 비교해 본다', ex: '할인율이 아니라 실제로 내는 돈을 여러 곳과 비교하는 것이 현명해요.' },
-  { id: 'k5', x: 14, y: 25, icon: '📢', title: '#광고 #협찬 표시', text: '인플루언서가 돈이나 물건을 받고 후기를 올렸다면 "광고", "협찬" 같은 표시를 해야 해요. 이런 후기는 판매자 쪽에서 나온 <b>상업적 원천</b>의 정보이므로 걸러서 봐야 해요.', q: '"#협찬" 표시가 붙은 후기는 어떤 원천의 정보일까?', opts: ['상업적 원천', '중립적 원천', '개인적 원천', '정부 원천'], a: '상업적 원천', ex: '대가를 받은 후기는 개인 후기처럼 보여도 상업적 원천이에요. (교과서 115쪽)' },
-  { id: 'k6', x: 31, y: 25, icon: '✍️', title: '미성년자의 계약', text: '만 19세 미만인 미성년자가 보호자(법정대리인)의 동의 없이 한 계약은 <b>원칙적으로 취소</b>할 수 있어요. 다만 용돈처럼 쓰도록 허락받은 돈의 범위 안에서 한 거래는 취소하기 어려울 수 있어요.', q: '중학생이 보호자 동의 없이 비싼 게임기를 할부로 계약했어요. 이 계약은?', opts: ['원칙적으로 취소할 수 있다', '절대 취소할 수 없다', '판매자만 취소할 수 있다', '1년이 지나야 취소할 수 있다'], a: '원칙적으로 취소할 수 있다', ex: '미성년자가 보호자 동의 없이 한 계약은 원칙적으로 취소할 수 있어요.' },
-  { id: 'k7', x: 18, y: 27, icon: '🧾', title: '영수증은 증거', text: '교환·환불·수리를 받으려면 언제, 어디서, 얼마에 샀는지 증명해야 할 때가 많아요. <b>영수증과 품질 보증서</b>를 보관해 두면 보증 기간 안에 무상 수리를 받을 때 도움이 돼요.', q: '보증 기간 안에 무상 수리를 받으려면 무엇을 챙겨 두면 좋을까?', opts: ['상품 포장 비닐', '영수증과 품질 보증서', '광고 전단지', '쇼핑몰 회원 등급'], a: '영수증과 품질 보증서', ex: '구매 사실과 보증 기간을 증명할 수 있는 영수증과 보증서를 챙겨요.' },
-  { id: 'k8', x: 27, y: 27, icon: '🌍', title: '윤리적 소비', text: '물건을 살 때 가격과 품질뿐 아니라 <b>환경, 노동자, 동물</b>에 미치는 영향까지 생각하는 소비를 윤리적 소비라고 해요. 공정 무역 제품 고르기, 다회용품 쓰기, 필요한 만큼만 사기도 여기에 해당해요.', q: '윤리적 소비의 예가 <b>아닌</b> 것은?', opts: ['공정 무역 초콜릿을 고른다', '텀블러를 들고 다닌다', '유행이 지나면 바로 버리고 새로 산다', '필요한 만큼만 산다'], a: '유행이 지나면 바로 버리고 새로 산다', ex: '쉽게 버리고 새로 사는 것은 환경에 부담을 줘요.' },
-  { id: 'k9', x: 22, y: 24, icon: '🤝', title: '중고 거래 안전 수칙', text: '시세보다 지나치게 싼 물건, 대화를 다른 메신저로 옮기자는 요구, 물건을 보여 주지 않고 <b>먼저 입금</b>만 요구하는 판매자는 사기를 의심해요. 가능하면 직거래나 플랫폼의 안전 결제를 이용해요.', q: '중고 거래에서 사기를 의심해야 하는 신호는?', opts: ['플랫폼 안전 결제를 쓰자고 한다', '직접 만나서 물건을 확인하자고 한다', '다른 메신저로 옮겨서 먼저 입금하라고 한다', '물건 사진을 여러 장 보내 준다'], a: '다른 메신저로 옮겨서 먼저 입금하라고 한다', ex: '선입금 요구와 외부 메신저 유도는 대표적인 사기 신호예요.' }
+  { id: 'k1', x: 18, y: 12, icon: '📦', title: '온라인 쇼핑 7일의 약속', text: '온라인으로 산 물건은 받은 날부터 7일 이내라면 단순히 마음이 바뀐 경우에도 청약 철회(구매 취소)를 요청할 수 있어요. 다만 포장을 뜯거나 사용해서 상품 가치가 크게 떨어진 경우 등은 제한될 수 있어요.', q: '온라인으로 산 운동화가 마음에 들지 않아요. 물건을 받은 날부터 며칠 이내에 청약 철회를 요청할 수 있을까?', opts: ['3일', '7일', '14일', '30일'], a: '7일', ex: '전자상거래로 산 물건은 받은 날부터 7일 이내에 청약 철회를 요청할 수 있어요.' },
+  { id: 'k2', x: 27, y: 12, icon: '☎️', title: '도움이 필요하면 1372', text: '산 물건이 불량인데 환불을 거부당했다면 혼자 고민하지 말아요. 1372 소비자상담센터에 전화하거나 누리집에서 상담받을 수 있어요. 상담으로 해결되지 않으면 한국소비자원의 피해 구제 절차로 이어질 수 있어요.', q: '소비자 피해를 상담할 수 있는 소비자상담센터 전화번호는?', opts: ['112', '119', '1372', '1388'], a: '1372', ex: '1372 소비자상담센터! 112는 경찰, 119는 소방, 1388은 청소년 상담 전화예요.' },
+  { id: 'k3', x: 14, y: 19, icon: '🕳️', title: '눈속임 설계, 다크 패턴', text: '무료 체험이 끝나면 알림 없이 자동 결제되게 하거나, 해지 버튼을 꼭꼭 숨겨 두거나, "남은 수량 1개!"처럼 괜히 서두르게 만드는 화면 설계를 다크 패턴이라고 해요. 결제 전에 자동 결제 여부와 해지 방법을 꼭 확인해요.', q: '다크 패턴의 예로 알맞은 것은?', opts: ['무료 체험이 끝나면 알림 없이 자동 결제된다', '가격과 성분을 정확히 표시한다', '반품 방법을 첫 화면에 안내한다', '결제 전에 최종 금액을 보여 준다'], a: '무료 체험이 끝나면 알림 없이 자동 결제된다', ex: '소비자를 속여 원하지 않는 결제를 하게 만드는 설계가 다크 패턴이에요.' },
+  { id: 'k4', x: 31, y: 19, icon: '🏷️', title: '할인율의 함정', text: '"정가 99,000원 → 49,000원(50% 할인)!" 그런데 그 물건이 원래 어디서나 49,000원에 팔리고 있었다면? 처음 본 높은 가격이 기준이 되어 싸다고 느끼게 되는 것을 기준점 효과라고 해요. 할인율보다 실제 가격을 비교해요.', q: '할인 광고를 보았을 때 가장 현명한 행동은?', opts: ['할인율이 크면 바로 산다', '다른 곳의 실제 판매 가격과 비교해 본다', '정가가 비쌀수록 좋은 물건이라고 믿는다', '마감 시간이 끝나기 전에 서둘러 산다'], a: '다른 곳의 실제 판매 가격과 비교해 본다', ex: '할인율이 아니라 실제로 내는 돈을 여러 곳과 비교하는 것이 현명해요.' },
+  { id: 'k5', x: 14, y: 25, icon: '📢', title: '#광고 #협찬 표시', text: '인플루언서가 돈이나 물건을 받고 후기를 올렸다면 "광고", "협찬" 같은 표시를 해야 해요. 이런 후기는 판매자 쪽에서 나온 상업적 원천의 정보이므로 걸러서 봐야 해요.', q: '"#협찬" 표시가 붙은 후기는 어떤 원천의 정보일까?', opts: ['상업적 원천', '중립적 원천', '개인적 원천', '정부 원천'], a: '상업적 원천', ex: '대가를 받은 후기는 개인 후기처럼 보여도 상업적 원천이에요. (교과서 115쪽)' },
+  { id: 'k6', x: 31, y: 25, icon: '✍️', title: '미성년자의 계약', text: '만 19세 미만인 미성년자가 보호자(법정대리인)의 동의 없이 한 계약은 원칙적으로 취소할 수 있어요. 다만 용돈처럼 쓰도록 허락받은 돈의 범위 안에서 한 거래는 취소하기 어려울 수 있어요.', q: '중학생이 보호자 동의 없이 비싼 게임기를 할부로 계약했어요. 이 계약은?', opts: ['원칙적으로 취소할 수 있다', '절대 취소할 수 없다', '판매자만 취소할 수 있다', '1년이 지나야 취소할 수 있다'], a: '원칙적으로 취소할 수 있다', ex: '미성년자가 보호자 동의 없이 한 계약은 원칙적으로 취소할 수 있어요.' },
+  { id: 'k7', x: 18, y: 27, icon: '🧾', title: '영수증은 증거', text: '교환·환불·수리를 받으려면 언제, 어디서, 얼마에 샀는지 증명해야 할 때가 많아요. 영수증과 품질 보증서를 보관해 두면 보증 기간 안에 무상 수리를 받을 때 도움이 돼요.', q: '보증 기간 안에 무상 수리를 받으려면 무엇을 챙겨 두면 좋을까?', opts: ['상품 포장 비닐', '영수증과 품질 보증서', '광고 전단지', '쇼핑몰 회원 등급'], a: '영수증과 품질 보증서', ex: '구매 사실과 보증 기간을 증명할 수 있는 영수증과 보증서를 챙겨요.' },
+  { id: 'k8', x: 27, y: 27, icon: '🌍', title: '윤리적 소비', text: '물건을 살 때 가격과 품질뿐 아니라 환경, 노동자, 동물에 미치는 영향까지 생각하는 소비를 윤리적 소비라고 해요. 공정 무역 제품 고르기, 다회용품 쓰기, 필요한 만큼만 사기도 여기에 해당해요.', q: '윤리적 소비의 예가 <b>아닌</b> 것은?', opts: ['공정 무역 초콜릿을 고른다', '텀블러를 들고 다닌다', '유행이 지나면 바로 버리고 새로 산다', '필요한 만큼만 산다'], a: '유행이 지나면 바로 버리고 새로 산다', ex: '쉽게 버리고 새로 사는 것은 환경에 부담을 줘요.' },
+  { id: 'k9', x: 22, y: 24, icon: '🤝', title: '중고 거래 안전 수칙', text: '시세보다 지나치게 싼 물건, 대화를 다른 메신저로 옮기자는 요구, 물건을 보여 주지 않고 먼저 입금만 요구하는 판매자는 사기를 의심해요. 가능하면 직거래나 플랫폼의 안전 결제를 이용해요.', q: '중고 거래에서 사기를 의심해야 하는 신호는?', opts: ['플랫폼 안전 결제를 쓰자고 한다', '직접 만나서 물건을 확인하자고 한다', '다른 메신저로 옮겨서 먼저 입금하라고 한다', '물건 사진을 여러 장 보내 준다'], a: '다른 메신저로 옮겨서 먼저 입금하라고 한다', ex: '선입금 요구와 외부 메신저 유도는 대표적인 사기 신호예요.' }
 ];
 READINGS.forEach(r => solid(r.x, r.y));
 const teamBonus = mem => mem.reduce((s, m) => s + (+m.bn || 0), 0) * BONUS_SEC;
@@ -1732,12 +1759,14 @@ function toast(msg, kind) { const d = document.createElement('div'); d.className
 function show(name) {
   S.screen = name;
   $('#scrLogin').hidden = name !== 'login'; $('#scrAvatar').hidden = name !== 'avatar'; $('#scrStory').hidden = name !== 'story';
-  $('#scrTeacher').hidden = name !== 'teacher'; $('#scrEnd').hidden = name !== 'end';
+  $('#scrTeacher').hidden = name !== 'teacher'; $('#scrEnd').hidden = name !== 'end'; $('#scrLobby').hidden = name !== 'lobby';
   $('#hud').hidden = name !== 'game';
   if (name === 'game') { renderHud(); renderList(); updateAction(); }
 }
 
 /* ---------- 분위기 ---------- */
+try { const z = store.get('algomall:tsize'); if (z) $('#tSize').value = z; } catch (e) { }
+$('#tSize').addEventListener('input', () => { store.set('algomall:tsize', $('#tSize').value); renderTeacher(); });
 try { const c = store.get('algomall:code'); if (c) $('#inCode').value = c; } catch (e) { }
 (() => { const h = $('#heroTitle');
   if (h) {
@@ -1766,9 +1795,10 @@ $('#loginForm').onsubmit = e => {
   if (!nick || nick.length > 8) { $('#loginErr').textContent = '닉네임을 1~8자로 입력해요.'; return; }
   $('#loginErr').textContent = '';
   S.sid = sid; S.nick = nick; S.practice = $('#inPractice').checked; S.online = !S.practice && Net.usable();
+  if (Net.mode === 'firebase' && !$('#inCode').value.trim()) { $('#loginErr').textContent = '선생님이 알려 준 게임방 코드를 입력해요.'; return; }
   if (Net.mode === 'firebase') { const code = safeCode($('#inCode').value); store.set('algomall:code', code); Net.join(code); }
   const saved = store.get(keyOf());
-  if (saved && saved.team === S.team) { S.av = safeAv(saved.av); S.sol = new Set(saved.sol || []); S.w6 = new Set(saved.w6 || []); S.rd = new Set(saved.rd || []); S.bn = saved.bn || 0; S.r2G = saved.r2G || null; S.r2d = saved.r2d || 0; S.clr = new Set(saved.clr || []); S.st = saved.st || 0; S.pen = saved.pen || 0; S.hints = saved.hints ?? 3; S.done = saved.done || 0; S.pl = saved.pl || ''; if (saved.x) { S.x = saved.x; S.y = saved.y; } S.seen = saved.seen; }
+  if (saved && saved.team === S.team) { S.av = safeAv(saved.av); S.sol = new Set(saved.sol || []); S.w6 = new Set(saved.w6 || []); S.rd = new Set(saved.rd || []); S.bn = saved.bn || 0; S.jt = saved.jt || 0; S.go = saved.go || 0; S.r2G = saved.r2G || null; S.r2d = saved.r2d || 0; S.clr = new Set(saved.clr || []); S.st = saved.st || 0; S.pen = saved.pen || 0; S.hints = saved.hints ?? 3; S.done = saved.done || 0; S.pl = saved.pl || ''; if (saved.x) { S.x = saved.x; S.y = saved.y; } S.seen = saved.seen; }
   else if (saved && saved.av) S.av = safeAv(saved.av);
   buildAvatarUI(); show('avatar');
 };
@@ -1790,13 +1820,37 @@ function drawPreview(t) {
   drawChar(c, 150, 296, S.av, 5, t, false, Math.abs(turn) > .6 ? Math.sign(turn) * .8 : 0, 1, 2);
 }
 $('#btnEnter').onclick = () => {
-  if (!S.st) S.st = Date.now();
+  if (!S.online && !S.st) S.st = Date.now();
+  if (!S.jt) S.jt = Date.now();
   S.role = 'student'; S.area = areaAt(S.x, S.y);
   if (!S.online) makeBots();
   save(); pushMe(true);
   updConn();
-  if (S.seen && S.sol.size) { enterGame(); } else { startStory(); }
+  if (S.seen && S.sol.size) { enterOrLobby(); } else { startStory(); }
 };
+/* ---------- 모둠 대기실: 먼저 들어온 사람이 방장, 방장이 시작하면 모두 함께 출발 ---------- */
+const teamNow = () => [meObj(), ...teammates()];
+const hostOf = mem => mem.slice().sort((a, b) => ((a.jt || 9e15) - (b.jt || 9e15)) || String(a.sid).localeCompare(String(b.sid)))[0];
+const teamGo = mem => Math.max(0, ...mem.map(m => +m.go || 0));
+function enterOrLobby() {
+  if (!S.online || S.st) { S.lob = 0; enterGame(); return; }
+  const g = teamGo(teamNow()); if (g) { startTeam(g); return; }
+  S.lob = 1; pushMe(true); show('lobby'); renderLobby();
+}
+function startTeam(go) { S.go = go; S.st = go; S.lob = 0; save(); pushMe(true); enterGame(); toast('탈출 시작! 불 꺼진 방을 찾아 모둠원과 함께 움직여요.', 'gold'); }
+function renderLobby() {
+  if (S.screen !== 'lobby') return;
+  const mem = teamNow(); const g = teamGo(mem); if (g) { startTeam(g); return; }
+  const host = hostOf(mem), iAmHost = host.sid === S.sid;
+  $('#lobCode').textContent = Net.mode === 'firebase' ? `게임방 ${Net.code}` : '알고몰 입구';
+  $('#lobTitle').textContent = `${S.team}모둠 대기실`;
+  $('#lobSub').innerHTML = `지금 <b>${mem.length}명</b> 접속했어요. 모둠원이 모두 들어오면 방장이 탈출을 시작해요.`;
+  $('#lobList').innerHTML = mem.slice().sort((a, b) => ((a.jt || 9e15) - (b.jt || 9e15))).map(m => `<div class="lrow ${m.sid === host.sid ? 'host' : ''}"><img alt="" src="${avIcon(m.av)}"><span><b>${esc(m.nick)}</b>${m.isMe ? ' (나)' : ''}<small>${esc(m.sid)}</small></span><em>${m.sid === host.sid ? '👑 방장' : '접속 완료'}</em></div>`).join('');
+  const go = $('#btnGo'); go.hidden = !iAmHost; go.textContent = `모두 모였어요! 탈출 시작 (${mem.length}명)`;
+  $('#lobWait').textContent = iAmHost ? '모둠원이 다 들어왔는지 확인하고 눌러 주세요. 늦게 온 친구는 바로 따라 들어와요.' : `방장 ${host.nick}이(가) 시작하기를 기다리는 중…`;
+}
+$('#btnGo').onclick = () => { const mem = teamNow(); if (hostOf(mem).sid !== S.sid) { renderLobby(); return; } startTeam(Date.now()); };
+setInterval(() => { if (S.screen === 'lobby') renderLobby(); }, 700);
 function enterGame() { S.known = new Set(); S.litAt = {}; members(); show('game'); updConn(); if (!S.online) toast(Net.usable() ? '연습 모드: 연습봇 2명이 모둠원이에요.' : '실시간 연결이 안 돼서 연습 모드로 시작해요. 연습봇 2명이 모둠원이에요.'); }
 
 /* ---------- 이야기 ---------- */
@@ -1815,7 +1869,7 @@ function typeLine() {
   $('#btnStory').textContent = '다음';
 }
 $('#btnStory').onclick = () => {
-  if (!$('#rules').hidden) { enterGame(); return; }
+  if (!$('#rules').hidden) { enterOrLobby(); return; }
   storyI++;
   if (storyI < STORY.length) typeLine();
   else { clearInterval(typer); $('#storyText').innerHTML = '<span class="spk">탈출 규칙</span>불 꺼진 방 6개를 돌며 코드 조각을 모아 계산대 비상구를 열어라. 제한 시간은 22분…'; $('#rules').hidden = false; $('#btnStory').textContent = '탈출 시작!'; }
@@ -1837,19 +1891,27 @@ function renderTeacher() {
   const ps = Net.others().map(normPeer).filter(m => m.role === 'student');
   const teams = new Map(); ps.forEach(m => { if (!teams.has(m.team)) teams.set(m.team, []); teams.get(m.team).push(m); });
   if (!Net.usable()) { $('#tRank').innerHTML = ''; $('#tGrid').innerHTML = `<div class="empty">실시간 연결이 되지 않아 학생 현황을 볼 수 없어요.<br>이 화면은 학생들과 같은 링크를 연 상태에서 실시간으로 갱신돼요.</div>`; return; }
-  if (!teams.size) { $('#tRank').innerHTML = ''; $('#tGrid').innerHTML = `<div class="empty">아직 입장한 학생이 없어요.<br>학생들이 학번·닉네임으로 입장하면 모둠별 진행 상황이 여기에 실시간으로 나타나요.</div>`; return; }
+  for (let t = 1; t <= TEAMS; t++) if (!teams.has(t)) teams.set(t, []);
+  const size = Math.max(1, +($('#tSize') && $('#tSize').value) || 4);
+  $('#tInfo').textContent = Net.mode === 'firebase' ? `게임방 ${Net.code} · 접속 학생 ${ps.length}명` : `접속 학생 ${ps.length}명`;
   const rows = [...teams.entries()].sort((a, b) => a[0] - b[0]).map(([t, mem]) => {
+    if (!mem.length) return { t, mem, empty: true };
     const done = AREAS.map(a => isCleared(a.id, mem)); const n6 = done.slice(0, 6).filter(Boolean).length;
     const esc2 = Math.min(...mem.map(m => m.done || Infinity)); const escaped = isFinite(esc2);
     const bonus = teamBonus(mem); return { t, mem, done, n6, escaped, bonus, raw: escaped ? esc2 : teamElapsed(mem), time: escaped ? Math.max(0, esc2 - bonus) : teamElapsed(mem) };
   });
-  const ranked = rows.filter(r => r.escaped).sort((a, b) => a.time - b.time);
+  const ranked = rows.filter(r => !r.empty && r.escaped).sort((a, b) => a.time - b.time);
   $('#tRank').innerHTML = ranked.length ? `<div class="tcard esc" style="margin-bottom:12px"><h3>탈출 순위</h3><div class="tmem">${ranked.map((r, i) => `<b style="color:var(--gold)">${i + 1}위</b> ${r.t}모둠 · ${fmt(r.time)} <span style="color:var(--mute)">(탈출 ${fmt(r.raw)} − 보너스 ${r.bonus}초)</span>`).join('<br>')}</div></div>` : '';
-  $('#tGrid').innerHTML = rows.map(r => `<div class="tcard ${r.escaped ? 'esc' : ''}"><h3>${r.t}모둠 <span>${r.escaped ? '탈출 ' + fmt(r.time) : '진행 ' + fmt(r.time)}</span></h3>
-    <div class="bar">${r.done.map((d, i) => `<i class="${d ? 'd' : ''}" title="${AREAS[i].name}"></i>`).join('')}</div>
-    <div class="tmem">읽기 보너스 -${r.bonus}초 · 코드 조각 ${r.n6}/6 · ${r.escaped ? '탈출 성공' : (r.mem.some(m => m.clr.has('door')) ? '계산대 진입' : '방 탐색 중')}</div>
-    <div class="tmem">${r.mem.map(m => `${esc(m.sid)} ${esc(m.nick)} · ${m.area === 'hall' ? '복도' : esc(AREA[m.area]?.name || '')}${m.pen ? ` · 힌트 ${Math.round(m.pen / 60)}` : ''}${m.jl ? ' · 🔒감옥' : ''}`).join('<br>')}</div>
-    ${r.mem.filter(m => m.pl).map(m => `<div class="pl">“${esc(m.pl)}” <span style="color:var(--mute)">— ${esc(m.nick)}</span></div>`).join('')}</div>`).join('');
+  $('#tGrid').innerHTML = rows.map(r => {
+    if (r.empty) return `<div class="tcard dim"><h3>${r.t}모둠 <span class="chip0">접속 0/${size}</span></h3><div class="tmem">아직 아무도 들어오지 않았어요.</div></div>`;
+    const host = hostOf(r.mem), started = r.mem.some(m => m.go || m.st), full = r.mem.length >= size;
+    const stat = r.escaped ? '<b class="st esc">탈출</b>' : started ? '<b class="st run">진행 중</b>' : '<b class="st wait">대기실</b>';
+    return `<div class="tcard ${r.escaped ? 'esc' : ''}"><h3>${r.t}모둠 ${stat}<span>${r.escaped ? '최종 ' + fmt(r.time) : started ? '진행 ' + fmt(r.time) : ''}</span></h3>
+    <div class="cnt ${full ? 'full' : ''}">${full ? '✓ 접속 완료' : '접속 중'} · ${r.mem.length}/${size}명</div>
+    ${started ? `<div class="bar">${r.done.map((d, i) => `<i class="${d ? 'd' : ''}" title="${AREAS[i].name}"></i>`).join('')}</div><div class="tmem">읽기 보너스 -${r.bonus}초 · 코드 조각 ${r.n6}/6 · ${r.escaped ? '탈출 성공' : (r.mem.some(m => m.clr.has('door')) ? '계산대 진입' : '방 탐색 중')}</div>` : ''}
+    <ul class="tlist">${r.mem.slice().sort((a, b) => (a.jt || 9e15) - (b.jt || 9e15)).map(m => `<li>${m.sid === host.sid ? '👑' : '·'} <b>${esc(m.nick)}</b> <small>${esc(m.sid)}</small> <em>${m.lob && !started ? '대기실' : m.area === 'hall' ? '복도' : esc(AREA[m.area]?.name || '')}${m.pen ? ` · 힌트 ${Math.round(m.pen / 60)}` : ''}${m.jl ? ' · 🔒감옥' : ''}</em></li>`).join('')}</ul>
+    ${r.mem.filter(m => m.pl).map(m => `<div class="pl">“${esc(m.pl)}” <span style="color:var(--mute)">— ${esc(m.nick)}</span></div>`).join('')}</div>`;
+  }).join('');
 }
 setInterval(() => { if (S.screen === 'teacher') renderTeacher(); }, 1000);
 
