@@ -379,6 +379,7 @@ h1 span{display:inline-block}
 @keyframes siren{0%{background-color:rgba(200,22,29,.55)}100%{background-color:rgba(8,7,7,.9)}}
 #scrClosed .okc{color:var(--ok)}#scrClosed .noc{color:var(--bad)}
 .btn:disabled.alt{opacity:.45}
+#introSkip{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:56;border:2px solid #8d867d;background:rgba(14,13,12,.85);color:var(--ink);border-radius:10px 3px 10px 3px;font-family:var(--display);font-weight:700;font-size:17px;padding:8px 14px}
 /* ---------- 대기실 + 교사 현황 ---------- */
 .lobby{display:grid;gap:8px;margin:4px 0 4px}
 .lrow{display:flex;align-items:center;gap:10px;background:#0f0e0d;border:1.5px solid #57524d;border-radius:14px 5px 14px 5px;padding:8px 12px}
@@ -551,7 +552,7 @@ h1 span{display:inline-block}
   <div class="tbox">
     <header>
       <div><div class="sign" style="justify-content:flex-start"><span>알고몰 관리실</span></div><h1>선생님 화면</h1></div>
-      <div class="row" style="flex-wrap:wrap"><span class="pill" id="tInfo"></span><label class="pill" for="tSize">모둠당 인원 <input id="tSize" type="number" min="1" max="7" value="4" style="width:42px;background:transparent;border:0;color:var(--ink);font:inherit;text-align:center"></label><span class="pill" id="tConn"><i></i><span>연결 확인 중</span></span><span class="pill" id="tState">대기 중</span><button class="btn alt" id="btnTStart" style="width:auto;margin:0;padding:8px 14px;font-size:18px" type="button">▶ 일괄 시작</button><button class="btn" id="btnTEnd" style="width:auto;margin:0;padding:8px 14px;font-size:18px;background:#5a0a0d" type="button">⛔ 알고몰 폐쇄</button><button class="btn ghost" id="btnTReset" hidden style="width:auto;margin:0;padding:8px 12px" type="button">↺ 다시 열기</button><button class="btn" id="btnTMap" style="width:auto;margin:0;padding:8px 16px;font-size:19px" type="button">🗺️ 지도 보기</button><button class="btn ghost" id="btnTBack" style="width:auto;margin:0" type="button">처음으로</button></div>
+      <div class="row" style="flex-wrap:wrap"><span class="pill" id="tInfo"></span><label class="pill" for="tSize">모둠당 인원 <input id="tSize" type="number" min="1" max="7" value="4" style="width:42px;background:transparent;border:0;color:var(--ink);font:inherit;text-align:center"></label><span class="pill" id="tConn"><i></i><span>연결 확인 중</span></span><span class="pill" id="tState">대기 중</span><button class="btn alt" id="btnTStart" style="width:auto;margin:0;padding:8px 14px;font-size:18px" type="button">▶ 일괄 시작</button><button class="btn" id="btnTEnd" style="width:auto;margin:0;padding:8px 14px;font-size:18px;background:#5a0a0d" type="button">⛔ 알고몰 폐쇄</button><button class="btn ghost" id="btnTReset" hidden style="width:auto;margin:0;padding:8px 12px" type="button">↺ 다시 열기</button><button class="btn ghost" id="btnTIntro" style="width:auto;margin:0;padding:8px 12px" type="button">🎬 인트로 미리보기</button><button class="btn" id="btnTMap" style="width:auto;margin:0;padding:8px 16px;font-size:19px" type="button">🗺️ 지도 보기</button><button class="btn ghost" id="btnTBack" style="width:auto;margin:0" type="button">처음으로</button></div>
     </header>
     <div id="tRank"></div>
     <div class="tgrid" id="tGrid"></div>
@@ -631,6 +632,7 @@ h1 span{display:inline-block}
   </div>
 </div>
 
+<button id="introSkip" type="button" hidden>건너뛰기 ▶▶</button>
 <div id="toasts" aria-live="polite"></div>
 <button id="sndBtn" type="button" aria-label="소리 끄기">🔊</button>
 
@@ -2051,7 +2053,7 @@ function toast(msg, kind) { const d = document.createElement('div'); d.className
 function show(name) {
   S.screen = name;
   $('#scrLogin').hidden = name !== 'login'; $('#scrAvatar').hidden = name !== 'avatar'; $('#scrStory').hidden = name !== 'story';
-  $('#scrTeacher').hidden = name !== 'teacher'; $('#scrEnd').hidden = name !== 'end'; $('#scrLobby').hidden = name !== 'lobby'; $('#scrClosed').hidden = name !== 'closed'; $('#tmapBar').hidden = name !== 'tmap';
+  $('#scrTeacher').hidden = name !== 'teacher'; $('#scrEnd').hidden = name !== 'end'; $('#scrLobby').hidden = name !== 'lobby'; $('#scrClosed').hidden = name !== 'closed'; $('#introSkip').hidden = name !== 'intro' || INTRO.mode === 'student'; $('#tmapBar').hidden = name !== 'tmap';
   $('#hud').hidden = name !== 'game';
   if (name === 'game') { renderHud(); renderList(); updateAction(); }
 }
@@ -2059,10 +2061,10 @@ function show(name) {
 /* ---------- 선생님 일괄 시작 · 알고몰 폐쇄 ---------- */
 function checkControl() {
   const c = Net.getCtl ? Net.getCtl() : {}; if (!c) return;
-  if (S.screen === 'teacher' || S.screen === 'tmap') { updTeacherCtl(); return; }
+  if (S.screen === 'teacher' || S.screen === 'tmap' || (S.screen === 'intro' && S.role === 'teacher')) { updTeacherCtl(); return; }
   if (S.role !== 'student' || !S.online) return;
-  if (c.end && S.closedSeen !== c.end && ['lobby', 'story', 'game', 'end'].includes(S.screen)) { S.closedSeen = c.end; showClosed(true); return; }
-  if (c.start && !c.end && S.screen === 'lobby') startTeam(c.start);
+  if (c.end && S.closedSeen !== c.end && ['lobby', 'story', 'game', 'end', 'intro'].includes(S.screen)) { S.closedSeen = c.end; showClosed(true); return; }
+  if (c.start && !c.end && S.screen === 'lobby') startTeam(c.start + INTRO_MS);
 }
 setInterval(checkControl, 700);
 SND.alarm = function (sec = 10) {
@@ -2070,6 +2072,7 @@ SND.alarm = function (sec = 10) {
   this.tone(110, sec, { type: 'sawtooth', vol: .05, filter: 'lowpass', ff: 400 });
 };
 function showClosed(alarm) {
+  if (INTRO.voice) { try { INTRO.voice.pause(); } catch (e) { } INTRO.voice = null; } INTRO.mode = '';
   closeMission(); if (typeof JAIL !== 'undefined' && JAIL.active) { if (JAIL.stop) try { JAIL.stop(); } catch (e) { } JAIL.active = false; $('#jail').hidden = true; S.jl = 0; }
   const mem = members(); const got = ROOMS6.filter(a => isCleared(a.id, mem)).length; const esc2 = Math.min(...mem.map(m => m.done || Infinity));
   $('#clTeam').textContent = `${teamName(S.team)} · 모둠원 ${mem.length}명`;
@@ -2080,7 +2083,8 @@ function showClosed(alarm) {
   else $('#clCount').hidden = true;
 }
 const armBtn = (btn, label, act) => { btn.onclick = () => { if (btn.dataset.arm) { delete btn.dataset.arm; btn.textContent = label; act(); return; } btn.dataset.arm = 1; btn.textContent = '정말요? 한 번 더 누르기'; setTimeout(() => { if (btn.dataset.arm) { delete btn.dataset.arm; btn.textContent = label; } }, 3000); }; };
-armBtn($('#btnTStart'), '▶ 일괄 시작', () => { Net.setCtl({ start: Date.now(), end: 0 }); toast('모든 모둠의 탈출을 시작했어요!', 'gold'); });
+armBtn($('#btnTStart'), '▶ 일괄 시작', () => { const now = Date.now(); Net.setCtl({ start: now, end: 0 }); playIntro(now + INTRO_MS, 'teacher'); });
+$('#btnTIntro').onclick = () => playIntro(Date.now() + INTRO_MS, 'preview');
 armBtn($('#btnTEnd'), '⛔ 알고몰 폐쇄', () => { const c = Net.getCtl(); Net.setCtl({ start: c.start || 0, end: Date.now() }); SND.init(); SND.alarm(10); $('#scrTeacher').classList.add('siren'); setTimeout(() => $('#scrTeacher').classList.remove('siren'), 10000); });
 armBtn($('#btnTReset'), '↺ 다시 열기', () => { Net.setCtl({ start: 0, end: 0 }); toast('알고몰을 다시 열었어요. 새 수업은 새 게임방 코드를 쓰는 것을 추천해요.', 'gold'); });
 function updTeacherCtl() {
@@ -2182,10 +2186,14 @@ $('#btnEnter').onclick = () => {
 const teamNow = () => [meObj(), ...teammates()];
 const hostOf = mem => mem.slice().sort((a, b) => ((a.jt || 9e15) - (b.jt || 9e15)) || String(a.sid).localeCompare(String(b.sid)))[0];
 const teamGo = mem => Math.max(0, ...mem.map(m => +m.go || 0));
-function beginGame() { if (S.sd) enterGame(); else startStory(); }
+function beginGame() {
+  if (S.go && Date.now() < S.go) { playIntro(S.go, 'student'); return; }
+  if (!S.sd) { if (!S.online) { S.go = S.st = Date.now() + INTRO_MS; save(); playIntro(S.go, 'student'); return; } S.sd = 1; save(); }
+  enterGame();
+}
 function enterOrLobby() {
   if (!S.online || S.st) { S.lob = 0; beginGame(); return; }
-  const g = teamGo(teamNow()) || (Net.getCtl().start || 0); if (g && !Net.getCtl().end) { startTeam(g); return; }
+  const g = teamGo(teamNow()) || (Net.getCtl().start ? Net.getCtl().start + INTRO_MS : 0); if (g && !Net.getCtl().end) { startTeam(g); return; }
   S.lob = 1; pushMe(true); show('lobby'); renderLobby.sig = ''; renderLobby();
 }
 function startTeam(go) { S.go = go; S.st = go; S.lob = 0; save(); pushMe(true); beginGame(); }
@@ -2203,7 +2211,7 @@ function renderLobby() {
   const go = $('#btnGo'); go.hidden = !iAmHost; go.textContent = `모두 모였어요! 탈출 시작 (${mem.length}명)`;
   $('#lobWait').textContent = iAmHost ? '모둠원이 다 들어왔는지 확인하고 눌러 주세요. 선생님이 한꺼번에 시작할 수도 있어요. 늦게 온 친구는 바로 따라 들어와요.' : `방장 ${host.nick}이(가) 시작하기를 기다리는 중…`;
 }
-$('#btnGo').onclick = () => { const mem = teamNow(); if (hostOf(mem).sid !== S.sid) { renderLobby(); return; } startTeam(Date.now()); };
+$('#btnGo').onclick = () => { const mem = teamNow(); if (hostOf(mem).sid !== S.sid) { renderLobby(); return; } startTeam(Date.now() + INTRO_MS); };
 setInterval(() => { if (S.screen === 'lobby') renderLobby(); }, 700);
 function enterGame() { S.known = new Set(); S.litAt = {}; members(); show('game'); SND.init(); SND.startBgm(); updConn(); if (!S.online) toast(Net.usable() ? '연습 모드: 연습봇 2명이 모둠원이에요.' : '실시간 연결이 안 돼서 연습 모드로 시작해요. 연습봇 2명이 모둠원이에요.'); }
 
@@ -2274,6 +2282,84 @@ function renderTeacher() {
 }
 setInterval(() => { if (S.screen === 'teacher') renderTeacher(); }, 1000);
 
+/* ================= 인트로 영상 (모든 화면에서 같은 시각에 재생) ================= */
+const INTRO_VOICE = 'intro_voice.mp3';   // 성우 음성 파일(있으면 함께 재생)
+const CUES = [
+  [0, '참가자 여러분, 알고몰에 오신 것을 환영합니다.'],
+  [4.56, '여러분은 추천 상품을 누른 대가로, 이곳에 초대되었습니다.'],
+  [8.95, '지금부터, 알고몰 탈출을 시작하겠습니다.'],
+  [12.56, '첫 번째 규칙. 불 꺼진 방 여섯 곳에서, 모둠원이 함께 미션을 수행합니다.'],
+  [18.48, '두 번째 규칙. 모둠원 전원이 성공해야만, 방에 불이 켜집니다.'],
+  [23.68, '단 한 명이라도 실패한다면… 통과는 없습니다.'],
+  [27.54, '세 번째 규칙. 오답을 고른 참가자는, 알고의 감옥에 수감됩니다.'],
+  [32.84, '여섯 개의 코드 조각을 모아 계산대 비상구를 여십시오. 그것이 유일한 출구입니다.'],
+  [39.11, '제한 시간은 이십이 분. 시간이 끝나면, 알고몰은 폐쇄됩니다.'],
+  [44.47, '기억하십시오. 혜경쌤의 수업 시간에 배운 모든 것이, 여러분의 무기입니다.'],
+  [49.87, '합리적인 소비자임을 증명한 자만이, 이곳을 나갈 수 있습니다.'],
+  [54.55, '크크… 과연 몇 명이나 살아남을까?'],
+  [58.5, '그럼… 게임을 시작하겠습니다.']
+];
+const INTRO_DUR = 64.6, INTRO_MS = INTRO_DUR * 1000;
+const IAV = [{ s: 1, h: 0, hc: 0, o: 0, a: 1 }, { s: 0, h: 1, hc: 4, o: 1, a: 2 }, { s: 3, h: 3, hc: 1, o: 3, a: 3 }, { s: 2, h: 2, hc: 2, o: 4, a: 4 }];
+const INAME = ['참가자 012', '참가자 027', '참가자 103', '참가자 118'];
+const INTRO = { go: 0, mode: '', fired: new Set(), voice: null };
+function playIntro(go, mode) {
+  INTRO.go = go; INTRO.mode = mode; INTRO.fired = new Set();
+  closeMission(); show('intro'); $('#introSkip').hidden = mode === 'student';
+  SND.init(); SND.startBgm(); if (SND.music && SND.ctx) SND.music.gain.setTargetAtTime(.45, SND.ctx.currentTime, .3);
+  try { if (INTRO.voice) INTRO.voice.pause(); const a = new Audio(INTRO_VOICE); a.preload = 'auto'; INTRO.voice = a; const off = INTRO_DUR - (go - Date.now()) / 1000; a.addEventListener('loadedmetadata', () => { try { a.currentTime = Math.max(0, INTRO_DUR - (INTRO.go - Date.now()) / 1000); } catch (e) { } a.play().catch(() => { }); }, { once: true }); a.addEventListener('error', () => { INTRO.voice = null; }, { once: true }); if (off > 0) a.currentTime = off; } catch (e) { INTRO.voice = null; }
+}
+function finishIntro() {
+  if (INTRO.voice) { try { INTRO.voice.pause(); } catch (e) { } INTRO.voice = null; }
+  if (SND.music && SND.ctx) SND.music.gain.setTargetAtTime(1.1, SND.ctx.currentTime, .5);
+  const m = INTRO.mode; INTRO.mode = '';
+  if (m === 'student') { S.sd = 1; save(); enterGame(); }
+  else if (m === 'teacher') { S.role = 'teacher'; openTeacherMap(0); }
+  else { S.role = 'teacher'; show('teacher'); renderTeacher(); }
+}
+$('#introSkip').onclick = () => { INTRO.go = Date.now(); };
+function introSfx(key, fn) { if (!INTRO.fired.has(key)) { INTRO.fired.add(key); try { fn(); } catch (e) { } } }
+/* 1280×720 가상 화면에 그리기 */
+function renderIntro(t) {
+  const W = 1280, H = 720, s = Math.min(VW / W, VH / H), ox = (VW - W * s) / 2, oy = (VH - H * s) / 2;
+  const tt = performance.now() / 1000;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VW, VH);
+  const V = () => ctx.setTransform(DPR * s, 0, 0, DPR * s, DPR * ox, DPR * oy);
+  let cam = null;
+  const world = (cx, cy, tiles) => { const ws = W / (tiles * T); cam = { cx, cy, tiles }; ctx.setTransform(DPR * s * ws, 0, 0, DPR * s * ws, DPR * (ox + (W / 2 - cx * T * ws) * s), DPR * (oy + (H / 2 - cy * T * ws) * s)); };
+  const w2v = (x, y) => [W / 2 + (x - cam.cx) * W / cam.tiles, H / 2 + (y - cam.cy) * W / cam.tiles];
+  const dummy = [{ sol: new Set(), clr: new Set() }];
+  const drawWorld = (cx, cy, tiles) => { world(cx, cy, tiles); ctx.drawImage(mapC, 0, 0, mapC.width, mapC.height, 0, 0, MW * T, MH * T); for (const [px, py] of PUMPKINS) { const g = ctx.createRadialGradient(px * T, py * T, 2, px * T, py * T, T * 1.4); g.addColorStop(0, `rgba(238,123,34,${.25 + Math.sin(tt * 9 + px) * .06})`); g.addColorStop(1, 'rgba(238,123,34,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px * T, py * T, T * 1.4, 0, 7); ctx.fill(); } AREAS.forEach(a => drawStation(a, tt, dummy, 0, 0)); drawHolo(tt, 0, 0, dummy); drawGate(0, 0, tt); };
+  const chars = (list) => { const k = T / 40; list.sort((a, b) => a[1] - b[1]).forEach(([x, y, i, mv, fx, fy]) => { drawChar(ctx, x * T, y * T, IAV[i], k, tt, mv, fx || 0, fy ?? 1, i * 3); nameTag(x * T, y * T - 58 * k, INAME[i], false, k); }); };
+  const spot = (vx, vy, r, dark = .93) => { V(); const g = ctx.createRadialGradient(vx, vy, r * .35, vx, vy, r); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${dark})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); };
+  const txt = (str, x, y, size, color, font = 'scary', align = 'center', stroke = true) => { V(); ctx.font = font === 'scary' ? `${size}px "East Sea Dokdo", Gaegu, sans-serif` : font === 'hand' ? `700 ${size}px Gaegu, sans-serif` : `900 ${size}px "Noto Sans KR", sans-serif`; ctx.textAlign = align; ctx.textBaseline = 'middle'; needGlyphs(str); if (stroke) { ctx.lineWidth = size / 9; ctx.strokeStyle = '#000'; ctx.lineJoin = 'round'; ctx.strokeText(str, x, y); } ctx.fillStyle = color; ctx.fillText(str, x, y); };
+  const card = (num, title, a) => { V(); ctx.globalAlpha = a; ctx.fillStyle = 'rgba(0,0,0,.82)'; ctx.fillRect(0, 230, W, 260); ctx.fillStyle = '#c8161d'; ctx.fillRect(0, 230, W, 4); ctx.fillRect(0, 486, W, 4); txt(num, W / 2, 300, 46, '#ee7b22', 'hand', 'center', false); txt(title, W / 2, 390, 96, '#f2eee8'); ctx.globalAlpha = 1; };
+  const ease = x => x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x);
+  ctx.save(); V(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
+  let ci = 0; for (let i = 0; i < CUES.length; i++) if (t >= CUES[i][0]) ci = i;
+  const c0 = CUES[ci][0], c1 = ci + 1 < CUES.length ? CUES[ci + 1][0] : INTRO_DUR, lt = t - c0, d = c1 - c0, p = lt / d;
+  switch (ci) {
+    case 0: { V(); ctx.fillStyle = '#050404'; ctx.fillRect(0, 0, W, H); const r = 150 * ease(lt / 1.8); if (r > 2) { ctx.save(); ctx.translate(0, 0); drawEyeball(W / 2, H / 2 - 20, r, tt, Math.sin(tt * .9) * .7, Math.cos(tt * .7) * .3, false, 3); ctx.restore(); } txt('WELCOME TO ALGO MALL', W / 2, 90, 40, '#a29c93', 'hand', 'center', false); break; }
+    case 1: { const y = 31 - 12 * ease(p); drawWorld(23, y, 13); chars([[21.6, y + 1.2, 0, true, 0, -1], [22.6, y + 1.6, 1, true, 0, -1], [23.6, y + 1.3, 2, true, 0, -1], [24.5, y + 1.8, 3, true, 0, -1]]); spot(W / 2, H / 2 + 60, 470); break; }
+    case 2: { drawWorld(23, 17.6, 7.5 - p * 1.5); spot(W / 2, H / 2, 620, .8); introSfx('boom2', () => { SND.boom(0, .6); }); const fl = Math.random() < .12 ? .25 : 1; V(); ctx.globalAlpha = ease(lt / .6) * fl; txt('알고몰 탈출', W / 2, 505, 170, '#c8161d'); ctx.globalAlpha = 1; break; }
+    case 3: { const k = ease((lt - 1.2) / Math.max(.5, d * .5)); drawWorld(8.2 - 4.6 * k, 6.6, 10); const start = [[12.6, 5.4], [12.6, 6.4], [13.4, 5.9], [13.4, 6.9]], goal = [[1.8, 6.3], [5.2, 6.3], [2.2, 8.3], [4.8, 8.3]]; const P = start.map(([sx2, sy2], i) => [sx2 + (goal[i][0] - sx2) * k, sy2 + (goal[i][1] - sy2) * k]); const walking = k > 0 && k < 1; chars(P.map(([x, y], i) => [x, y, i, walking, walking ? -1 : (x < 3.4 ? .5 : -.5), walking ? 0 : -1])); const gx = P.reduce((a, p) => a + p[0], 0) / 4, gy = P.reduce((a, p) => a + p[1], 0) / 4; if (k >= 1) { const kk = T / 40, glow = .5 + Math.sin(tt * 6) * .5; ctx.fillStyle = `rgba(224,70,79,${.25 + glow * .25})`; ctx.beginPath(); ctx.arc(3.5 * T, 5.2 * T, T * 1.3, 0, 7); ctx.fill(); const say = ['이거 아닐까?', '같이 풀자!', '음…', '좋아!']; const tl = lt - (1.2 + Math.max(.5, d * .5)); P.forEach(([x, y], i) => { if (tl > .2 + i * .45) chatBubble(x * T, y * T - 66 * kk, say[i], kk, false); }); } const [vx, vy] = w2v(gx, gy - 1.3); spot(vx, vy, 540, .93); V(); for (let q = 0; q < 6; q++) { const ex = 120 + q * 190 + Math.sin(q * 7) * 40, ey = 120 + (q % 3) * 130; if (Math.hypot(ex - vx, ey - vy) < 330 || ((tt * 1000 + q * 900) % 3600) < 150) continue; ctx.fillStyle = 'rgba(230,30,36,.9)'; ctx.beginPath(); ctx.ellipse(ex - 12, ey, 7, 3.5, .2, 0, 7); ctx.ellipse(ex + 12, ey, 7, 3.5, -.2, 0, 7); ctx.fill(); } card('RULE 01', '모둠원이 함께', ease(1 - Math.max(0, lt - 1.2) / .5) * ease(lt / .3)); break; }
+    case 4: case 5: { const lt2 = t - CUES[4][0]; drawWorld(42.4, 17.9, 10.5); const pos = [[40.4, 17.4], [44.4, 17.4], [40.9, 19.6], [43.9, 19.6]]; chars(pos.map(([x, y], i) => [x, y, i, false, 0, -1])); const marks = [0.9, 1.7, 2.5, 5.5]; V(); pos.forEach(([x, y], i) => { if (lt2 > marks[i]) { const [vx, vy] = w2v(x, y - 2.1); const bad = i === 3; introSfx('m' + i, () => bad ? SND.wrong() : SND.coin()); txt(bad ? '✗' : '✓', vx, vy, 70, bad ? '#ff3b3b' : '#8ad29a', 'hand'); } }); spot(W / 2, H / 2, 560, lt2 > 5.5 ? .9 : .7); if (lt2 > 7.5) { introSfx('stamp', () => SND.boom(0, .4)); V(); ctx.save(); ctx.translate(W / 2, H / 2 - 20); ctx.rotate(-.12); ctx.globalAlpha = ease((lt2 - 7.5) / .2); ctx.strokeStyle = '#c8161d'; ctx.lineWidth = 10; ctx.strokeRect(-260, -70, 520, 140); ctx.restore(); ctx.globalAlpha = ease((lt2 - 7.5) / .2); txt('통과 불가', W / 2, H / 2 - 20, 110, '#c8161d'); ctx.globalAlpha = 1; } if (ci === 4) card('RULE 02', '전원 성공', ease(1 - Math.max(0, lt - 1.1) / .5) * ease(lt / .3)); break; }
+    case 6: { drawWorld(23, 25.5, 6); chars([[23, 26.3, 2, false, 0, 1]]); spot(W / 2, H / 2 + 30, 420, .9); const drop = ease((lt - 1.4) / .25); if (lt > 1.4) introSfx('jail', () => SND.jail()); V(); if (drop > 0) { const by = -H + drop * H; ctx.fillStyle = 'rgba(120,8,12,.25)'; ctx.fillRect(0, 0, W, H); for (let i = 0; i < 11; i++) { ctx.fillStyle = '#2b2826'; ctx.fillRect(40 + i * 120, by, 28, H); ctx.fillStyle = '#57524d'; ctx.fillRect(46 + i * 120, by, 6, H); } ctx.fillStyle = '#1a1716'; ctx.fillRect(0, by + H - 60, W, 26); txt('알고의 감옥', W / 2, 140, 120, '#c8161d'); } card('RULE 03', '오답은 감옥행', ease(1 - Math.max(0, lt - 1.1) / .4) * ease(lt / .3)); break; }
+    case 7: { V(); ctx.fillStyle = '#0b0a0a'; ctx.fillRect(0, 0, W, H); const L = '??????'; for (let i = 0; i < 6; i++) { const x = W / 2 - 375 + i * 150, y = 290, on = lt > .5 + i * .55; ctx.strokeStyle = on ? '#ee7b22' : '#57524d'; ctx.lineWidth = 5; ctx.setLineDash(on ? [] : [12, 9]); ctx.strokeRect(x - 60, y - 70, 120, 140); ctx.setLineDash([]); if (on) { introSfx('L' + i, () => SND.coin()); ctx.fillStyle = 'rgba(238,123,34,.15)'; ctx.fillRect(x - 60, y - 70, 120, 140); txt('?', x, y, 110, '#f3bd52'); txt('조각 ' + (i + 1), x, y + 100, 26, '#a29c93', 'hand', 'center', false); } } const op = ease((lt - 4) / 1.2); if (op > 0) { introSfx('door', () => SND.unlock()); const g = ctx.createRadialGradient(W / 2, 560, 10, W / 2, 560, 260); g.addColorStop(0, `rgba(255,240,200,${op})`); g.addColorStop(1, 'rgba(255,240,200,0)'); ctx.fillStyle = g; ctx.fillRect(0, 380, W, 340); ctx.fillStyle = '#1a1716'; ctx.fillRect(W / 2 - 120 - op * 110, 460, 120, 220); ctx.fillRect(W / 2 + op * 110, 460, 120, 220); txt('EXIT', W / 2, 430, 60, '#8ad29a', 'hand'); } break; }
+    case 8: { V(); const left = Math.max(0, 22 * 60 * (1 - ease((lt - .8) / 3.2))); const red = lt > 3.6; ctx.fillStyle = red && Math.floor(tt * 4) % 2 ? '#3a0507' : '#0b0a0a'; ctx.fillRect(0, 0, W, H); if (Math.floor(left) % 20 === 0) introSfx('tk' + Math.floor(left / 20), () => SND.tick()); txt(fmt(left), W / 2, 330, 260, red ? '#ff3b3b' : '#f3bd52'); if (red) { introSfx('alarm', () => { for (let i = 0; i < 4; i++) SND.tone(i % 2 ? 740 : 988, .13, { at: i * .2, type: 'square', vol: .1 }); }); txt('알고몰 폐쇄', W / 2, 560, 100, '#c8161d'); } break; }
+    case 9: { V(); ctx.fillStyle = '#0b0a0a'; ctx.fillRect(0, 0, W, H); const kw = ['~슈머', '소비자 정보', '디지털 발자국', '맞춤형 광고', '충동 소비', '동조 소비', '과시 소비', '과소비 지수']; kw.forEach((k, i) => { const a = ease((lt - .3 - i * .25) / .5); if (a <= 0) return; const ang = i / kw.length * Math.PI * 2 + tt * .15, rx = 500, ry = 250; ctx.globalAlpha = a * .85; txt(k, W / 2 + Math.cos(ang) * rx, H / 2 + Math.sin(ang) * ry, 34, '#a29c93', 'hand', 'center', false); }); ctx.globalAlpha = ease(lt / .6); txt('기억하십시오', W / 2, 250, 60, '#ee7b22', 'hand', 'center', false); txt('혜경쌤의 수업', W / 2, 360, 130, '#f2eee8'); ctx.globalAlpha = ease((lt - 1.2) / .6); txt('= 여러분의 무기', W / 2, 470, 64, '#c8161d', 'hand'); txt('📖 교과서와 활동지를 참고하세요', W / 2, 545, 34, '#a29c93', 'hand', 'center', false); ctx.globalAlpha = 1; break; }
+    case 10: { const k = ease(p); drawWorld(23, 8.5 - k * 2.5, 11); const op = 1; chars([[21.8, 12.2 - k * 5, 0, true, 0, -1], [23, 12.8 - k * 5, 1, true, 0, -1], [24.2, 12.4 - k * 5, 3, true, 0, -1]]); V(); const g = ctx.createRadialGradient(W / 2, 120, 10, W / 2, 120, 380); g.addColorStop(0, 'rgba(255,240,200,.55)'); g.addColorStop(1, 'rgba(255,240,200,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); spot(W / 2, 260, 640, .75); ctx.globalAlpha = ease((lt - .8) / .4); V(); ctx.save(); ctx.translate(W / 2, 110); ctx.rotate(-.04); ctx.fillStyle = 'rgba(0,0,0,.75)'; ctx.fillRect(-380, -66, 760, 132); ctx.restore(); txt('합리적인 소비자', W / 2, 110, 104, '#8ad29a'); ctx.globalAlpha = 1; break; }
+    case 11: { V(); const pulse = .5 + Math.sin(tt * 6) * .5; ctx.fillStyle = `rgb(${20 + pulse * 40},0,0)`; ctx.fillRect(0, 0, W, H); introSfx('laugh', () => SND.laugh(.9, .35, .85)); drawEyeball(W / 2, H / 2, 240 + Math.sin(tt * 3) * 8, tt, Math.sin(tt * 2) * .5, Math.sin(tt * 1.3) * .3, false, 7); break; }
+    case 12: { V(); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); const msg = '게임을 시작하겠습니다'; const n = Math.floor(ease(lt / 1.6) * msg.length); txt(msg.slice(0, n), W / 2, H / 2 - 20, 100, '#f2eee8'); if (lt > 2) txt('알고몰 탈출', W / 2, H / 2 + 110, 54, '#c8161d', 'scary', 'center', false); if (lt > 3.3) { introSfx('end', () => SND.boom(0, .5)); ctx.fillStyle = `rgba(255,255,255,${ease((lt - 3.3) / .3) * (1 - ease((lt - 3.7) / .3))})`; ctx.fillRect(0, 0, W, H); } break; }
+  }
+  // 자막
+  V(); const sub = CUES[ci][1]; if (sub && !(ci === 12 && lt > 3.3)) { ctx.font = '700 30px "Noto Sans KR", sans-serif'; needGlyphs(sub); const tw = ctx.measureText(sub).width; ctx.fillStyle = 'rgba(0,0,0,.72)'; rr(ctx, W / 2 - tw / 2 - 22, H - 86, tw + 44, 56, 10); ctx.fill(); ctx.fillStyle = '#f2eee8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(sub, W / 2, H - 58); }
+  // 진행 막대
+  ctx.fillStyle = '#c8161d'; ctx.fillRect(0, H - 4, W * Math.min(1, t / INTRO_DUR), 4);
+  ctx.restore(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.__introFrame = t => renderIntro(t);
+
 /* ================= 선생님 지도 보기: 모든 학생의 움직임을 한눈에 ================= */
 const TEAM_COL = ['#e0464f', '#ee7b22', '#f3bd52', '#6fd1a0', '#4fc3f7', '#7c6cff', '#d070d0', '#a0e060'];
 const teamCol = t => t >= 11 ? '#cfc8bd' : TEAM_COL[(t - 1) % TEAM_COL.length];
@@ -2343,7 +2429,8 @@ function loop(now) {
   const dt = Math.min(.05, (now - lastT) / 1000); lastT = now; const t = now / 1000;
   if (S.screen === 'game') { updateMe(dt, now); if (!S.online) updateBots(dt, now); members(); gameTick(now); }
   if (S.screen === 'avatar') drawPreview(t);
-  if (S.screen === 'tmap') renderTeacherMap(t, dt); else render(t, dt);
+  if (S.screen === 'intro') { const it = INTRO_DUR - (INTRO.go - Date.now()) / 1000; if (it >= INTRO_DUR) finishIntro(); else renderIntro(Math.max(0, it)); }
+  else if (S.screen === 'tmap') renderTeacherMap(t, dt); else render(t, dt);
   requestAnimationFrame(loop);
 }
 addEventListener('resize', resize);
